@@ -1,0 +1,65 @@
+
+
+services:
+  # 1. Cơ sở dữ liệu Postgres - Lưu trữ User, Log và Hồ sơ
+  database:
+    image: postgres:15
+    container_name: soc_db
+    restart: always
+    environment:
+      POSTGRES_DB: soc_bhxh_db
+      POSTGRES_USER: postgres
+      # Sử dụng biến môi trường để không lộ mật khẩu Admin ra ngoài
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data # Quan trọng: Giữ lại dữ liệu khi tắt Docker
+
+  # 2. Backend Server - Xử lý Logic SOC & Mã hóa AES
+  backend:
+    build: ./backend
+    container_name: soc_backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      # Kết nối DB dùng tên service "database" làm hostname
+      - DB_URL=postgres://postgres:${DB_PASSWORD}@database:5432/soc_bhxh_db
+      - AES_KEY=${AES_KEY}       # Chìa khóa mã hóa hồ sơ BHXH
+      - JWT_SECRET=${JWT_SECRET} # Chìa khóa tạo Token đăng nhập
+    depends_on:
+      - database
+
+  # 3. Frontend Client - Dashboard & Giao diện SOC
+  frontend:
+    build: ./frontend
+    container_name: soc_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    stdin_open: true # Giữ terminal mở để React/Vue không bị tắt
+    tty: true
+    depends_on:
+      - backend
+  # 4. Nginx - Người gác cổng & Quản lý SSL
+  nginx:
+    image: nginx:stable-alpine
+    container_name: soc_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro # Gắn cấu hình (Chế độ chỉ đọc)
+      - ./nginx/ssl:/etc/nginx/ssl:ro       # Gắn chứng chỉ SSL
+    depends_on:
+      - backend
+      - frontend
+
+
+# Khai báo Volume để lưu trữ dữ liệu DB lâu dài
+volumes:
+  db_data:
+
+
+  

@@ -1,0 +1,13 @@
+# Chặn file cấu hình cá nhân
+.env
+
+# Chặn chứng chỉ SSL của Leader
+nginx/ssl/
+
+# Chặn thư viện nặng
+node_modules/
+dist/
+build/
+
+# Chặn file rác hệ thống
+.DS_Store

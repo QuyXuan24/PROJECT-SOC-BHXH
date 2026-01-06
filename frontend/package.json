@@ -1,0 +1,7 @@
+{
+  "name": "soc-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve -s src -p 3000"
+  }
+}
