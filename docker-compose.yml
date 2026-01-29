@@ -1,65 +1,85 @@
-
+version: '3.8'
 
 services:
-  # 1. Cơ sở dữ liệu Postgres - Lưu trữ User, Log và Hồ sơ
+  # ==========================================
+  # 1. DATABASE - SQL SERVER 
+  # ==========================================
   database:
-    image: postgres:15
-    container_name: soc_db
-    restart: always
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: bhxh_sql_server
     environment:
-      POSTGRES_DB: soc_bhxh_db
-      POSTGRES_USER: postgres
-      # Sử dụng biến môi trường để không lộ mật khẩu Admin ra ngoài
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD} # Lấy từ file .env
     ports:
-      - "5432:5432"
+      - "1433:1433"
     volumes:
-      - db_data:/var/lib/postgresql/data # Quan trọng: Giữ lại dữ liệu khi tắt Docker
-
-  # 2. Backend Server - Xử lý Logic SOC & Mã hóa AES
-  backend:
-    build: ./backend
-    container_name: soc_backend
+      - ./sql_data:/var/opt/mssql # Volume giữ dữ liệu SQL
+    networks:
+      - bhxh_network
     restart: always
-    ports:
-      - "5000:5000"
+
+  # ==========================================
+  # 2. BACKEND - ASP.NET CORE API
+  # ==========================================
+  backend:
+    build:
+      # QUAN TRỌNG: Trỏ đúng vào folder chứa dự án .NET và Dockerfile mới
+      context: ./backend/BHXH_Backend
+      dockerfile: Dockerfile
+    container_name: bhxh_api_core
     environment:
-      # Kết nối DB dùng tên service "database" làm hostname
-      - DB_URL=postgres://postgres:${DB_PASSWORD}@database:5432/soc_bhxh_db
-      - AES_KEY=${AES_KEY}       # Chìa khóa mã hóa hồ sơ BHXH
-      - JWT_SECRET=${JWT_SECRET} # Chìa khóa tạo Token đăng nhập
+      # Connection String chuẩn cho .NET kết nối SQL Server
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=database,1433;Database=BHXH_DB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - AES_KEY=${AES_KEY}       # Cho Task 11 (Mã hóa)
+      - JWT_SECRET=${JWT_SECRET} # Cho Task 10 (Token)
+    ports:
+      - "5000:8080" # Map cổng 5000 máy bạn vào cổng 8080 của container .NET
     depends_on:
       - database
+    networks:
+      - bhxh_network
+    restart: on-failure
 
-  # 3. Frontend Client - Dashboard & Giao diện SOC
+  # ==========================================
+  # 3. FRONTEND - DASHBOARD
+  # ==========================================
   frontend:
     build: ./frontend
-    container_name: soc_frontend
-    restart: always
+    container_name: bhxh_frontend
     ports:
       - "3000:3000"
-    stdin_open: true # Giữ terminal mở để React/Vue không bị tắt
+    stdin_open: true
     tty: true
     depends_on:
       - backend
-  # 4. Nginx - Người gác cổng & Quản lý SSL
+    networks:
+      - bhxh_network
+    restart: always
+
+  # ==========================================
+  # 4. NGINX - REVERSE PROXY
+  # ==========================================
   nginx:
-    image: nginx:stable-alpine
-    container_name: soc_nginx
+    image: nginx:alpine
+    container_name: bhxh_nginx
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro # Gắn cấu hình (Chế độ chỉ đọc)
-      - ./nginx/ssl:/etc/nginx/ssl:ro       # Gắn chứng chỉ SSL
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - backend
       - frontend
+    networks:
+      - bhxh_network
 
-
-# Khai báo Volume để lưu trữ dữ liệu DB lâu dài
+# Khai báo Volume
 volumes:
-  db_data:
+  sql_data:
 
-
-  
+# Khai báo Network để các container nhìn thấy nhau
+networks:
+  bhxh_network:
+    driver: bridge

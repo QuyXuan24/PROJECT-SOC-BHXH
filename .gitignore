@@ -11,3 +11,9 @@ build/
 
 # Chặn file rác hệ thống
 .DS_Store
+
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+appsettings.Development.json
