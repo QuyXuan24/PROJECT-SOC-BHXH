@@ -10,5 +10,6 @@ namespace BHXH_Backend.Data
         }
         public DbSet<SystemLog> SystemLogs { get; set; }
         public DbSet<User> Users { get; set; } // Tạo bảng Users trong SQL
+        public DbSet<BhxhRecord> BhxhRecords { get; set; } // Tạo bảng BhxhRecords trong SQL
     }
 }

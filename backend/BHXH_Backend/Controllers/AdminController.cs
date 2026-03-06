@@ -49,7 +49,7 @@ namespace BHXH_Backend.Controllers
             return Ok(users);
         }
 
-        // 2. Tạo nhân viên (Fix lỗi thiếu async)
+        // 2. Tạo nhân viên (Staff/SOC)
         [HttpPost("users")]
         public async Task<IActionResult> CreateEmployee([FromBody] CreateEmployeeDto req)
         {
@@ -78,7 +78,7 @@ namespace BHXH_Backend.Controllers
             return Ok(new { message = $"Đã tạo nhân viên {req.Username} quyền {req.Role}" });
         }
 
-        // 3. Sửa nhân viên (Fix lỗi thiếu async)
+        // 3. Sửa nhân viên 
         [HttpPut("users/{id}")]
         public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserDto req)
         {
@@ -106,20 +106,32 @@ namespace BHXH_Backend.Controllers
         }
 
         // 4. Khóa/Mở khóa (Fix lỗi thiếu async)
-        [HttpPut("users/{id}/lock")]
+       [HttpPut("users/{id}/lock")]
         public async Task<IActionResult> ToggleLock(int id)
         {
-            var user = await _context.Users.FindAsync(id);
+        var user = await _context.Users.FindAsync(id);
             if (user == null) return NotFound("Không tìm thấy nhân viên này");
 
-            user.IsLocked = !user.IsLocked;
+        // Nếu đang bị khóa (dù là do Admin khóa hay do Auto-lock), 
+        // thì Admin bấm vào đây sẽ là MỞ KHÓA
+            if (user.IsLocked || (user.LockoutEnd.HasValue && user.LockoutEnd > DateTime.UtcNow))
+            {
+            user.IsLocked = false;          // Mở khóa Admin
+            user.LockoutEnd = null;         // Xóa thời gian khóa tự động
+            user.FailedLoginAttempts = 0;   // Reset bộ đếm sai
+            
             await _context.SaveChangesAsync();
-
-            string statusText = user.IsLocked ? "KHÓA" : "MỞ KHÓA";
-            var adminName = User.FindFirst("username")?.Value;
-            await _logger.WriteLogAsync(adminName, "LOCK_USER", $"Đã {statusText} tài khoản {user.Username} (ID: {id})");
-
-            return Ok(new { message = $"Đã {statusText} tài khoản {user.Username} thành công" });
+            await _logger.WriteLogAsync(User.Identity?.Name, "UNLOCK_USER", $"Admin đã mở khóa tài khoản {user.Username}");
+            return Ok(new { message = $"Đã mở khóa tài khoản {user.Username}." });
+            }
+            else
+            {
+            // Nếu chưa bị khóa, bấm vào thì là KHÓA (Thủ công)
+            user.IsLocked = true;
+            await _context.SaveChangesAsync();
+            await _logger.WriteLogAsync(User.Identity?.Name, "LOCK_USER", $"Admin đã khóa tài khoản {user.Username}");
+            return Ok(new { message = $"Đã khóa tài khoản {user.Username}." });
+            }
         }
     }
 }
