@@ -8,9 +8,6 @@ namespace BHXH_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    // 👇 CHỐT CHẶN AN NINH Ở ĐÂY 👇
-    // Chỉ Admin và SOC mới được gọi API này. Staff gọi vào là bị lỗi 403 Forbidden ngay.
-    [Authorize(Roles = "Admin, SOC")] 
     public class LogController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -20,19 +17,62 @@ namespace BHXH_Backend.Controllers
             _context = context;
         }
 
-        // API: Xem toàn bộ nhật ký hệ thống
-        // GET: api/Log
+        // =========================================================
+        // 1. API GET: XEM NHẬT KÝ (CHỈ ADMIN VÀ SOC ĐƯỢC XEM)
+        // =========================================================
         [HttpGet]
-        public async Task<IActionResult> GetSystemLogs()
+        [Authorize(Roles = "Admin, SOC")] // 👇 Chốt chặn an ninh đặt riêng ở đây
+        public async Task<IActionResult> GetSystemLogs([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
         {
-            // Lấy 100 dòng log mới nhất (Sắp xếp giảm dần theo thời gian)
-            // Không nên lấy hết hàng triệu dòng kẻo sập web
-            var logs = await _context.SystemLogs
-                .OrderByDescending(l => l.CreatedAt) // Cái mới nhất hiện lên đầu
-                .Take(100) // Chỉ lấy 100 cái xem cho nhanh
+            try
+            {
+                // Lấy 100 dòng log mới nhất, cái mới hiện lên đầu
+                var logs = await _context.SystemLogs
+                .OrderByDescending(l => l.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return Ok(logs);
+                return Ok(logs);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Lỗi hệ thống khi lấy log", error = ex.Message });
+            }
         }
+
+        // =========================================================
+        // 2. API POST: GHI NHẬT KÝ (MỞ CỬA CHO HỆ THỐNG TỰ GHI)
+        // =========================================================
+        // Không đặt [Authorize] ở đây để ai (hoặc hệ thống) cũng có thể gửi log cảnh báo
+        [HttpPost]
+        [Authorize] // 👈 Bảo vệ API này, chỉ cho phép người dùng đã đăng nhập (Admin, SOC, Staff) mới được ghi log
+        public async Task<IActionResult> WriteLog([FromBody] LogRequestDto request)
+        {
+            // TỰ ĐỘNG BẮT IP: Chụp ngay IP của kẻ vừa gửi request
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+
+            var newLog = new SystemLog
+            {
+                Username = request.Username ?? "Khách vãng lai / Hệ thống",
+                Action = request.Action,
+                Content = request.Content,
+                IpAddress = ipAddress,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.SystemLogs.Add(newLog);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Đã ghi log thành công!", data = newLog });
+        }
+    }
+
+    // Class phụ (DTO) để nhận dữ liệu từ Frontend gửi lên khi muốn ghi log
+    public class LogRequestDto
+    {
+        public string? Username { get; set; }
+        public required string Action { get; set; }
+        public required string Content { get; set; }
     }
 }
