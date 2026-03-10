@@ -13,7 +13,7 @@ namespace BHXH_Backend.Services
         }
 
         // Hàm này sẽ được gọi ở bất cứ đâu cần ghi log
-        public async Task WriteLogAsync(string? username, string action, string content)
+        public async Task WriteLogAsync(string? username, string action, string content,string? ipAddress = null)
         {
             var log = new SystemLog
             {
@@ -21,7 +21,7 @@ namespace BHXH_Backend.Services
                 Action = action,
                 Content = content,
                 CreatedAt = DateTime.UtcNow,
-                IpAddress = "127.0.0.1" // Tạm thời để cứng, sau này mình chỉ cách lấy IP thật sau
+                IpAddress = ipAddress ?? "Unknown IP"
             };
 
             _context.SystemLogs.Add(log);
