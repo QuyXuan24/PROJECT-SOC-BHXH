@@ -26,11 +26,11 @@ namespace BHXH_Backend.Controllers
 
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin")] // Chỉ Admin mới được truy cập các endpoint này
     public class AdminController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly SystemLogService _logger; // <--- Fix lỗi thiếu biến _logger
+        private readonly SystemLogService _logger; 
 
         // Constructor: Fix lỗi thiếu Inject
         public AdminController(ApplicationDbContext context, SystemLogService logger)

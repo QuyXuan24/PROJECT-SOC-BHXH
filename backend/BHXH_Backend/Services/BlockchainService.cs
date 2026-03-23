@@ -2,7 +2,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-
+namespace BHXH_Backend.Services;
 public class BlockchainService 
 {
     private readonly string _bridgeUrl;
