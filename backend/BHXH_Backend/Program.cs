@@ -41,7 +41,18 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(); 
 builder.Services.AddScoped<BHXH_Backend.Services.SystemLogService>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
+
 
 // AUTO MIGRATION (Tự tạo bảng nếu chưa có)
 using (var scope = app.Services.CreateScope())
@@ -89,10 +100,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+
 app.UseMiddleware<BHXH_Backend.Middlewares.RequestLoggingMiddleware>();
 
 //app.UseHttpsRedirection();
 
+app.UseCors("AllowAll");
 app.UseAuthentication(); // Xác thực
 app.UseAuthorization();  // Phân quyền
 
