@@ -40,6 +40,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(); 
 builder.Services.AddScoped<BHXH_Backend.Services.SystemLogService>();
+builder.Services.AddScoped<BHXH_Backend.Services.BlockchainService>();
 
 builder.Services.AddCors(options =>
 {
