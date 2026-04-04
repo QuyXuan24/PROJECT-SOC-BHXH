@@ -7,4 +7,4 @@ RUN npm install
 COPY . .
 EXPOSE 3000
 # Lệnh chạy frontend ổn định
-CMD ["serve", "-s", "src", "-l", "3000"]
+CMD ["serve", "src", "-l", "3000"]

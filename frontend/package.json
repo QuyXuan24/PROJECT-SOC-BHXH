@@ -2,6 +2,9 @@
   "name": "soc-frontend",
   "version": "1.0.0",
   "scripts": {
-    "start": "npx serve -s src -p 3000"
+    "start": "npx serve src -p 3000"
+  },
+  "devDependencies": {
+    "serve": "^14.2.6"
   }
 }

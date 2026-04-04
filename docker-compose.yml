@@ -61,6 +61,26 @@ services:
     restart: always
 
   # ==========================================
+  # 5. BLOCKCHAIN BRIDGE - KẾT NỐI VỚI BLOCKCHAIN (NODEJS)
+  # ==========================================
+  blockchain_bridge:
+    build: ./bridge-ubuntu # Đảm bảo bạn có folder này và Dockerfile bên trong
+    container_name: bhxh_bridge_ubuntu
+    environment:
+      - FABRIC_ENABLED=${FABRIC_ENABLED:-false}
+      - FABRIC_CHANNEL=mychannel
+      - FABRIC_CONTRACT=soc_bhxh
+      - FABRIC_IDENTITY=appUser
+      - FABRIC_AS_LOCALHOST=true
+      - FABRIC_CONNECTION_FILE=connection-org1.json
+      - FABRIC_WALLET_DIR=wallet
+    ports:
+      - "3001:3001" 
+    networks:
+      - bhxh_network
+    restart: always
+
+  # ==========================================
   # 4. NGINX - REVERSE PROXY
   # ==========================================
   nginx:

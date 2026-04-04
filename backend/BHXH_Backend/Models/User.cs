@@ -15,6 +15,10 @@ namespace BHXH_Backend.Models
 
         public string FullName { get; set; } = string.Empty;
 
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+
         public string Role { get; set; } = "User"; // Phân quyền: User, Admin, Officer
         
         public string BhxhCode { get; set; } = string.Empty; // Mã số BHXH (sẽ mã hóa AES)

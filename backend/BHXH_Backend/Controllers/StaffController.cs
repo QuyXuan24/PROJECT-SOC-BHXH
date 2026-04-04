@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using BHXH_Backend.Data;
+using BHXH_Backend.Dtos;
 using BHXH_Backend.Models;
-using BHXH_Backend.Dtos; // Import DTO mới tạo
-using BHXH_Backend.Services; 
+using BHXH_Backend.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -11,72 +11,142 @@ namespace BHXH_Backend.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Staff")] // Bảo vệ controller này chỉ cho nhân viên
+    [Authorize(Roles = "Staff")]
     public class StaffController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
         private readonly SystemLogService _logger;
+        private readonly BlockchainService _blockchainService;
 
-        public StaffController(ApplicationDbContext context, SystemLogService logger)
+        public StaffController(
+            ApplicationDbContext context,
+            SystemLogService logger,
+            BlockchainService blockchainService)
         {
             _context = context;
             _logger = logger;
+            _blockchainService = blockchainService;
         }
 
-        // 1. Xem danh sách hồ sơ cần duyệt
         [HttpGet("pending-records")]
         public async Task<IActionResult> GetPendingRecords()
         {
-            try 
+            try
             {
                 var records = await _context.BhxhRecords
-                                            .Where(r => r.Status == "Pending")
-                                            .ToListAsync();
+                    .Where(r => r.Status == "Pending")
+                    .ToListAsync();
                 return Ok(records);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi kết nối database: " + ex.Message });
+                return StatusCode(500, new { message = "Loi ket noi database: " + ex.Message });
             }
         }
 
-        // 2. Xử lý hồ sơ 
         [HttpPut("process-record/{id}")]
-            public async Task<IActionResult> ProcessRecord(int id, [FromBody] ProcessRecordDto req) 
+        public async Task<IActionResult> ProcessRecord(int id, [FromBody] ProcessRecordDto req)
+        {
+            var record = await _context.BhxhRecords.FindAsync(id);
+            if (record == null)
             {
-                var record = await _context.BhxhRecords.FindAsync(id);
-                if (record == null) return NotFound(new { message = "Hồ sơ không tồn tại" });
-
-                // --- CHỐT CHẶN NGHIỆP VỤ ---
-                // Hồ sơ đã duyệt rồi thì KHÔNG ĐƯỢC PHÉP sửa nữa
-                if (record.Status == "Approved") 
-                {
-                    return BadRequest(new { message = "Hồ sơ đã được duyệt, không thể thay đổi trạng thái!" });
-                }
-
-                // Cập nhật trạng thái
-                record.Status = req.Action; 
-                record.ProcessedBy = User.FindFirst(ClaimTypes.Name)?.Value;
-                record.UpdatedAt = DateTime.UtcNow; 
-                
-                try 
-                {
-                    await _context.SaveChangesAsync();
-
-                    await _logger.WriteLogAsync(
-                        User.Identity?.Name, 
-                        "PROCESS_RECORD", 
-                        $"Nhân viên đã {req.Action} hồ sơ ID: {id}"
-                    );
-                    
-                    string messageAction = (req.Action == "Approved") ? "duyệt" : "từ chối";
-                    return Ok(new { message = $"Đã {messageAction} hồ sơ thành công!" });
-                }
-                catch (DbUpdateException ex)
-                {
-                    await _logger.WriteLogAsync("System", "DB_ERROR", $"Lỗi cập nhật hồ sơ {id}: {ex.Message}");
-                    return StatusCode(500, new { message = "Lỗi lưu dữ liệu vào hệ thống." });
-                }
+                return NotFound(new { message = "Ho so khong ton tai" });
             }
+
+            if (record.Status == "Approved")
+            {
+                return BadRequest(new { message = "Ho so da duoc duyet, khong the thay doi trang thai!" });
+            }
+
+            var actor = User.FindFirst(ClaimTypes.Name)?.Value ?? "Staff";
+            var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+
+            record.Status = req.Action;
+            record.ProcessedBy = actor;
+            record.UpdatedAt = DateTime.UtcNow;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+
+                var processMessage = BuildProcessRecordSnapshot(record, req.Action, actor);
+                var recordKey = GetProcessRecordKey(record.Id);
+
+                // Tich hop blockchain truc tiep cho luong xu ly ho so.
+                var blockchainSynced = await _blockchainService.SubmitHashToBlockchainAsync(
+                    actor,
+                    "PROCESS_RECORD",
+                    processMessage,
+                    actorIp,
+                    recordKey);
+
+                await _logger.WriteLogAsync(
+                    actor,
+                    "PROCESS_RECORD",
+                    $"Nhan vien da {req.Action} ho so ID: {id}",
+                    actorIp);
+
+                var messageAction = req.Action == "Approved" ? "duyet" : "tu choi";
+                return Ok(new
+                {
+                    message = $"Da {messageAction} ho so thanh cong!",
+                    blockchainSynced
+                });
+            }
+            catch (DbUpdateException ex)
+            {
+                await _logger.WriteLogAsync(
+                    "System",
+                    "DB_ERROR",
+                    $"Loi cap nhat ho so {id}: {ex.Message}",
+                    actorIp);
+
+                return StatusCode(500, new { message = "Loi luu du lieu vao he thong." });
+            }
+        }
+
+        [HttpGet("verify-record/{id}")]
+        public async Task<IActionResult> VerifyProcessedRecord(int id)
+        {
+            var record = await _context.BhxhRecords.FindAsync(id);
+            if (record == null)
+            {
+                return NotFound(new { message = "Ho so khong ton tai" });
+            }
+
+            var actor = User.FindFirst(ClaimTypes.Name)?.Value ?? "Staff";
+            var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+            var message = BuildProcessRecordSnapshot(record, record.Status, record.ProcessedBy ?? "Unknown");
+            var recordKey = GetProcessRecordKey(record.Id);
+
+            var verifyResult = await _blockchainService.VerifyHashOnBlockchainAsync(
+                recordKey,
+                actor,
+                "PROCESS_RECORD",
+                message,
+                actorIp);
+
+            return Ok(new
+            {
+                recordId = record.Id,
+                recordKey,
+                verified = verifyResult.verified,
+                chainHash = verifyResult.chainHash,
+                requestHash = verifyResult.requestHash
+            });
+        }
+
+        private static string GetProcessRecordKey(int recordId) => $"PROCESS_RECORD:{recordId}";
+
+        private static string BuildProcessRecordSnapshot(BhxhRecord record, string action, string processedBy)
+        {
+            var versionTicks = (record.UpdatedAt ?? record.CreatedAt).Ticks;
+            return string.Join("|",
+                $"RecordId={record.Id}",
+                $"UserId={record.UserId}",
+                $"Action={action}",
+                $"ProcessedBy={processedBy}",
+                $"VersionTicks={versionTicks}");
+        }
     }
 }

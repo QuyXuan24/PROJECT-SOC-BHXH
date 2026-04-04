@@ -37,15 +37,18 @@ namespace BHXH_Backend.Controllers
             }
 
             string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-
             var user = new User
             {
                 Username = request.Username,
                 PasswordHash = passwordHash,
                 FullName = request.FullName,
+                PhoneNumber = request.PhoneNumber,
+                Email = request.Email,
                 Role = "User",
-                FailedLoginAttempts = 0 // Khởi tạo lúc đăng ký
+                FailedLoginAttempts = 0,
+                BhxhCode = request.BhxhCode?.Trim() ?? string.Empty
             };
+
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();

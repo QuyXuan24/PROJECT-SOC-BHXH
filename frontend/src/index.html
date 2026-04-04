@@ -6,7 +6,7 @@
     <title>Cổng Thông Tin Điện Tử Bảo Hiểm Xã Hội</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/frontend/src/css/animations.css">
+    <link rel="stylesheet" href="/css/animations.css">
     <style>
         body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; }
         
@@ -38,9 +38,20 @@
 <body>
 
     <div class="top-bar py-2 d-none d-md-block">
-        <div class="container d-flex justify-content-between">
-            <div><i class="fas fa-phone-alt text-danger me-2"></i>Hỗ trợ: 1900 9068 | <i class="fas fa-envelope ms-3 me-2 text-primary"></i>Email: cskh@vss.gov.vn</div>
-            <div><i class="fas fa-calendar-alt me-2"></i>Thứ Hai, 02 Tháng 03, 2026</div>
+        <div class="container d-flex justify-content-between align-items-center">
+            <div>
+                <a href="tel:19009068" class="text-decoration-none text-dark me-3">
+                    <i class="fas fa-phone-alt text-danger me-2"></i>Hỗ trợ: 1900 9068
+                </a>
+                <span class="text-muted">|</span>
+                <a href="mailto:cskh@vss.gov.vn" class="text-decoration-none text-dark ms-3">
+                    <i class="fas fa-envelope me-2 text-primary"></i>Email: cskh@vss.gov.vn
+                </a>
+        </div>
+
+        <div id="dynamic-date" class="fw-medium text-secondary">
+            <i class="fas fa-calendar-alt me-2"></i>
+            </div>
         </div>
     </div>
 
@@ -61,14 +72,14 @@
             </button>
             <div class="collapse navbar-collapse" id="mainNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="#"><i class="fas fa-home me-1"></i> Trang chủ</a></li>
-                    <li class="nav-item"><a class="nav-link" href="pages/about.html">Giới thiệu</a></li>
-                    <li class="nav-item"><a class="nav-link" href="pages/news.html">Tin tức - Sự kiện</a></li>
-                    <li class="nav-item"><a class="nav-link" href="pages/tracuu.html">Tra cứu trực tuyến</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/"><i class="fas fa-home me-1"></i> Trang chủ</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/pages/about.html">Giới thiệu</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/pages/news.html">Tin tức - Sự kiện</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/pages/tracuu.html">Tra cứu trực tuyến</a></li>
                 </ul>
                 <div class="d-flex gap-2">
-                    <a href="pages/auth.html" class="btn btn-primary fw-bold"><i class="fas fa-user me-2"></i>Cổng Dịch Vụ Công</a>
-                    <a href="pages/login.html" class="btn btn-outline-danger fw-bold"><i class="fas fa-shield-alt"></i> SOC Admin</a>
+                    <a href="/pages/auth.html" class="btn btn-primary fw-bold"><i class="fas fa-user me-2"></i>Cổng Dịch Vụ Công</a>
+                    <a href="/pages/login.html" class="btn btn-outline-danger fw-bold"><i class="fas fa-shield-alt"></i> SOC Admin</a>
                 </div>
             </div>
         </div>
@@ -80,7 +91,7 @@
                 <div class="col-md-7 p-5">
                     <h2 class="fw-bold text-primary mb-3">Chuyển Đổi Số Ngành BHXH</h2>
                     <p class="lead text-dark">Ứng dụng công nghệ Blockchain đảm bảo tính toàn vẹn dữ liệu. Hệ thống SOC giám sát an ninh mạng 24/7, bảo vệ tuyệt đối thông tin người tham gia.</p>
-                    <a href="pages/auth.html" class="btn btn-primary btn-lg mt-3 shadow">Đăng nhập tài khoản cá nhân</a>
+                    <a href="/pages/auth.html" class="btn btn-primary btn-lg mt-3 shadow">Đăng nhập tài khoản cá nhân</a>
                 </div>
                 <div class="col-md-5 text-center p-4">
                     <i class="fas fa-users-cog fa-10x text-primary" style="opacity: 0.8;"></i>
@@ -96,28 +107,28 @@
                 <div class="service-card hover-float">
                     <i class="fas fa-search service-icon"></i>
                     <h6 class="fw-bold">Tra cứu quá trình tham gia BHXH</h6>
-                    <a href="pages/tracuu.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
+                    <a href="/pages/tracuu.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="service-card hover-float">
                     <i class="fas fa-id-card service-icon"></i>
                     <h6 class="fw-bold">Tra cứu giá trị thẻ BHYT</h6>
-                    <a href="pages/tracuu.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
+                    <a href="/pages/tracuu.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="service-card">
                     <i class="fas fa-file-invoice-dollar service-icon"></i>
                     <h6 class="fw-bold">Đóng BHXH Tự nguyện</h6>
-                    <a href="pages/auth.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
+                    <a href="/pages/auth.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="service-card">
                     <i class="fas fa-file-signature service-icon"></i>
                     <h6 class="fw-bold">Nộp hồ sơ trực tuyến</h6>
-                    <a href="pages/auth.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
+                    <a href="/pages/auth.html" class="btn btn-sm btn-outline-primary mt-3 w-100">Truy cập</a>
                 </div>
             </div>
         </div>
@@ -140,6 +151,24 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/frontend/src/js/animations.js"></script>
+    <script src="/js/animations.js"></script>
+    <script>
+        function updateLiveDate() {
+            const now = new Date();
+            const options = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            };
+            // Định dạng chuẩn Tiếng Việt: Thứ Ba, 24 Tháng 3, 2026
+            const formattedDate = now.toLocaleDateString('vi-VN', options);
+            document.getElementById('dynamic-date').innerHTML =
+                `<i class="fas fa-calendar-alt me-2"></i>${formattedDate}`;
+        }
+
+        // Chạy hàm ngay khi load trang
+        updateLiveDate();
+    </script>
 </body>
 </html>

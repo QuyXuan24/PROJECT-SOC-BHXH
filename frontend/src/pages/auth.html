@@ -6,7 +6,7 @@
     <title>Cổng Dịch Vụ Công - Đăng Nhập/Đăng Ký</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/frontend/src/css/animations.css">
+    <link rel="stylesheet" href="/css/animations.css">
     <style>
         body { background-color: #e9ecef; }
         .auth-container { max-width: 500px; margin: 60px auto; background: white; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; }
@@ -20,7 +20,7 @@
 <body>
 
     <div class="container mt-3">
-        <a href="../index.html" class="text-decoration-none fw-bold text-secondary"><i class="fas fa-arrow-left me-2"></i>Quay lại Trang chủ</a>
+        <a href="/index.html" class="text-decoration-none fw-bold text-secondary"><i class="fas fa-arrow-left me-2"></i>Quay lại Trang chủ</a>
     </div>
 
     <div class="auth-container">
@@ -43,17 +43,34 @@
             <div class="tab-pane fade show active" id="login-pane" role="tabpanel">
                 <form id="citizenLoginForm">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Mã số BHXH / Số CCCD <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold">Tên đăng nhập <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text bg-light"><i class="fas fa-id-card text-muted"></i></span>
-                            <input type="text" class="form-control" placeholder="Nhập mã số..." required>
+                            <input
+                                type="text"
+                                id="loginUsername"
+                                name="username"
+                                class="form-control"
+                                placeholder="Nhập tên đăng nhập..."
+                                minlength="4"
+                                maxlength="20"
+                                pattern="[A-Za-z0-9]+"
+                                required
+                            >
                         </div>
                     </div>
                     <div class="mb-4">
                         <label class="form-label fw-bold">Mật khẩu <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text bg-light"><i class="fas fa-lock text-muted"></i></span>
-                            <input type="password" class="form-control" placeholder="Nhập mật khẩu..." required>
+                            <input
+                                type="password"
+                                id="loginPassword"
+                                name="password"
+                                class="form-control"
+                                placeholder="Nhập mật khẩu..."
+                                required
+                            >
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100 fw-bold py-2 mb-3">ĐĂNG NHẬP</button>
@@ -61,25 +78,34 @@
                         <a href="#" class="text-decoration-none text-muted small">Quên mật khẩu?</a>
                     </div>
                 </form>
+                <div id="errorMessage" class="alert alert-danger mt-3 d-none" role="alert"></div>
             </div>
 
             <div class="tab-pane fade" id="register-pane" role="tabpanel">
                 <form id="citizenRegisterForm">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Họ và Tên <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" placeholder="Nhập họ và tên có dấu..." required>
+                        <input type="text" name="fullName" class="form-control" placeholder="Nhập họ và tên có dấu..." maxlength="100" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Số CMND/CCCD <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" placeholder="12 chữ số..." required>
+                        <label class="form-label fw-bold">Tên đăng nhập <span class="text-danger">*</span></label>
+                        <input type="text" name="username" class="form-control" placeholder="4-20 ký tự, chỉ gồm chữ và số..." minlength="4" maxlength="20" pattern="[A-Za-z0-9]+" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Mã số BHXH (Nếu có)</label>
-                        <input type="text" class="form-control" placeholder="10 chữ số...">
+                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" placeholder="Nhập email..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="text" name="phoneNumber" class="form-control" placeholder="Nhập số điện thoại..." minlength="8" maxlength="20" pattern="[0-9+\-\s()]+" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Mã số BHXH (nếu có)</label>
+                        <input type="text" name="bhxhCode" class="form-control" placeholder="Nhập mã số BHXH..." maxlength="30" pattern="[0-9]*">
                     </div>
                     <div class="mb-4">
                         <label class="form-label fw-bold">Mật khẩu <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" placeholder="Tạo mật khẩu an toàn..." required>
+                        <input type="password" name="password" class="form-control" placeholder="Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số, ký tự đặc biệt..." minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}" title="Mật khẩu cần có chữ hoa, chữ thường, số và ký tự đặc biệt." required>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault" required>
@@ -94,7 +120,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="module" src="../js/auth.js"></script>
-    <script src="/frontend/src/js/animations.js"></script>
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/animations.js"></script>
 </body>
 </html>

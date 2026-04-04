@@ -65,7 +65,11 @@ namespace BHXH_Backend.Controllers
                 FullName = req.FullName,
                 Role = req.Role,
                 IsLocked = false,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password)
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password),
+                PhoneNumber = string.Empty,
+                Email = string.Empty,
+                BhxhCode = string.Empty,
+                FailedLoginAttempts = 0
             };
 
             _context.Users.Add(newUser);
