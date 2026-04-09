@@ -1,57 +1,79 @@
-// Đường dẫn gốc tới Backend .NET (Cổng 5199)
-import { fetchApi } from '/services/apiClient.js';
+﻿import { fetchApi } from '/services/apiClient.js';
 
-/**
- * Hàm lấy danh sách nhật ký hệ thống (System Logs)
- * Được bảo mật bằng JWT và phân quyền Admin/SOC
- */
-export const getSystemLogs = async () => {
-    // 1. Lấy token "chìa khóa" từ kho lưu trữ của trình duyệt
-    const token = localStorage.getItem('soc_token');
-    
-    // Nếu chưa đăng nhập (không có token), trả về null ngay lập tức
-    if (!token) {
-        console.warn("SOC Trace: Truy cập bị từ chối do thiếu Token.");
-        return null; 
+const withAuthHeaders = (token) => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`
+});
+
+const parseBody = async (response) => {
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        return response.json().catch(() => null);
     }
 
-    try {
-        // 2. Gọi API chuẩn theo LogController của Quý (/api/Log)
-        // Lưu ý: Không thêm /all vì Backend của Quý dùng Route mặc định
-        const response = await fetchApi(`/Log`, { 
-            method: 'GET',
-            headers: { 
-                'Content-Type': 'application/json',
-                // Gửi token vào Header Authorization theo chuẩn Bearer
-                'Authorization': `Bearer ${token}` 
-            }
-        });
-        
-        // 3. Xử lý các kịch bản phản hồi từ Server
-        if (!response.ok) {
-            // Trường hợp 1: Token hết hạn hoặc không hợp lệ (401)
-            if (response.status === 401) {
-                alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
-                localStorage.removeItem('soc_token');
-                window.location.href = '/pages/login.html';
-                throw new Error('Unauthorized');
-            }
-            
-            // Trường hợp 2: Có đăng nhập nhưng không phải quyền Admin/SOC (403)
-            if (response.status === 403) {
-                alert("Bạn không có quyền truy cập vào nhật ký SOC (Yêu cầu quyền Admin).");
-                throw new Error('Forbidden');
-            }
+    const text = await response.text().catch(() => '');
+    return text || null;
+};
 
-            throw new Error(`Lỗi Server: ${response.status}`);
-        }
-        
-        // 4. Trả về dữ liệu JSON (Danh sách logs) cho Dashboard hiển thị
-        return await response.json(); 
-
-    } catch (error) {
-        // Ghi log lỗi ra console để chúng ta dễ "bắt bệnh" khi debug
-        console.error("SOC API Connection Error:", error.message);
-        return null;
+const ensureSuccess = async (response, fallbackMessage) => {
+    const result = await parseBody(response);
+    if (!response.ok) {
+        const message = typeof result === 'string'
+            ? result
+            : result?.message || fallbackMessage;
+        throw new Error(message || fallbackMessage);
     }
+
+    return result;
+};
+
+export const getSystemLogs = async (token, options = {}) => {
+    const query = new URLSearchParams();
+
+    if (options.page) query.set('page', String(options.page));
+    if (options.pageSize) query.set('pageSize', String(options.pageSize));
+    if (options.search) query.set('search', options.search);
+    if (options.action) query.set('action', options.action);
+    if (options.severity) query.set('severity', options.severity);
+    if (options.ipAddress) query.set('ipAddress', options.ipAddress);
+    if (options.from) query.set('from', options.from);
+    if (options.to) query.set('to', options.to);
+    if (options.includeTotal) query.set('includeTotal', 'true');
+
+    const response = await fetchApi(`/Log${query.toString() ? `?${query.toString()}` : ''}`, {
+        method: 'GET',
+        headers: withAuthHeaders(token)
+    });
+
+    const result = await ensureSuccess(response, 'Không thể tải nhật ký hệ thống.');
+
+    if (options.includeTotal) {
+        return {
+            items: Array.isArray(result?.items) ? result.items : [],
+            total: Number(result?.total || 0),
+            page: Number(result?.page || options.page || 1),
+            pageSize: Number(result?.pageSize || options.pageSize || 50)
+        };
+    }
+
+    return Array.isArray(result) ? result : [];
+};
+
+export const getLogMode = async (token) => {
+    const response = await fetchApi('/Log/mode', {
+        method: 'GET',
+        headers: withAuthHeaders(token)
+    });
+
+    return ensureSuccess(response, 'Không thể lấy chế độ ghi log.');
+};
+
+export const setLogMode = async (token, enabled) => {
+    const response = await fetchApi('/Log/mode', {
+        method: 'PUT',
+        headers: withAuthHeaders(token),
+        body: JSON.stringify({ enabled })
+    });
+
+    return ensureSuccess(response, 'Không thể cập nhật chế độ ghi log.');
 };

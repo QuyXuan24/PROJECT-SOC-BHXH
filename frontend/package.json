@@ -4,6 +4,9 @@
   "scripts": {
     "start": "npx serve src -p 3000"
   },
+  "dependencies": {
+    "qrcode": "^1.5.3"
+  },
   "devDependencies": {
     "serve": "^14.2.6"
   }

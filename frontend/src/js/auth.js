@@ -1,9 +1,9 @@
 import { loginCitizen, registerCitizen } from '/services/authApi.js';
+import { getCurrentRole, setToken } from '/services/tokenService.js';
 
 const loginForm = document.getElementById('citizenLoginForm');
 const registerForm = document.getElementById('citizenRegisterForm');
 
-// --- XỬ LÝ ĐĂNG NHẬP NGƯỜI DÂN ---
 if (loginForm) {
     loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -29,8 +29,19 @@ if (loginForm) {
                 throw new Error(result?.message || 'Đăng nhập thất bại.');
             }
 
-            localStorage.setItem('soc_token', result.token);
-            window.location.href = '/pages/user-dashboard.html';
+            setToken(result.token);
+            const role = result.role || getCurrentRole();
+            if (role === 'User') {
+                window.location.href = '/pages/user-dashboard.html';
+            } else if (role === 'Employee') {
+                window.location.href = '/pages/employee-dashboard.html';
+            } else if (role === 'Security') {
+                window.location.href = '/pages/security-dashboard.html';
+            } else if (role === 'Admin') {
+                window.location.href = '/pages/admin-dashboard.html';
+            } else {
+                window.location.href = result.redirectPath || '/pages/user-dashboard.html';
+            }
         } catch (error) {
             const message = error?.message || 'Không thể đăng nhập. Vui lòng thử lại.';
             if (errorBox) {
@@ -39,13 +50,13 @@ if (loginForm) {
             } else {
                 alert(message);
             }
+
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
     });
 }
 
-// --- XỬ LÝ ĐĂNG KÝ NGƯỜI DÂN ---
 if (registerForm) {
     registerForm.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -68,7 +79,7 @@ if (registerForm) {
             const result = await registerCitizen(userData);
 
             if (result.success) {
-                alert('Đăng ký thành công! Bạn có thể đăng nhập ngay.');
+                alert('Đăng ký thành công! (Bản demo chưa bật OTP email/SMS)');
                 e.target.reset();
                 document.getElementById('login-tab')?.click();
             } else {

@@ -75,5 +75,5 @@ export const fetchApi = async (path, options = {}) => {
         }
     }
 
-    throw lastError || new Error("Khong the ket noi toi API SOC.");
+    throw lastError || new Error("Không thể kết nối tới SOC");
 };

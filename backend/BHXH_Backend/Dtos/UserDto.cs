@@ -31,8 +31,8 @@ namespace BHXH_Backend.Dtos
         [StringLength(200)]
         public string Email { get; set; } = string.Empty;
 
-        [StringLength(30, ErrorMessage = "Mã số BHXH quá dài")]
-        [RegularExpression(@"^[0-9]*$", ErrorMessage = "Mã số BHXH chỉ gồm chữ số")]
+        [Required(ErrorMessage = "Ma so BHXH la bat buoc")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Ma so BHXH phai dung 10 chu so")]
         public string? BhxhCode { get; set; }
     }
 

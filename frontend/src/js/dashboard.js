@@ -1,4 +1,5 @@
-import { getSystemLogs } from '/services/logApi.js'; // 1. Dùng đường dẫn tuyệt đối
+import { getSystemLogs } from '/services/logApi.js';
+import { formatDateTime } from '/js/formatters.js'; // 1. Dùng đường dẫn tuyệt đối
 
 // 1. Kiểm tra đăng nhập (Chốt chặn bảo mật)
 const token = localStorage.getItem('soc_token');
@@ -35,7 +36,7 @@ const loadLogs = async () => {
                         <td class="py-3 fw-bold">${actionBadge}</td>
                         <td class="py-3">${log.content || log.details || 'N/A'}</td>
                         <td class="py-3 text-info font-monospace">${log.ipAddress || '127.0.0.1'}</td>
-                        <td class="py-3 text-muted">${new Date(log.createdAt).toLocaleString('vi-VN')}</td>
+                        <td class="py-3 text-muted">${formatDateTime(log.createdAt)}</td>
                     </tr>
                 `);
             });
@@ -43,7 +44,7 @@ const loadLogs = async () => {
             tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-warning">Hệ thống chưa ghi nhận log nào trên Blockchain.</td></tr>';
         }
     } catch (error) {
-        tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">Khong the ket noi toi Server SOC. Vui long kiem tra Backend.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">Không thể kết nối tới Server SOC. Vui lòng kiểm tra Backend.</td></tr>';
         return;
     }
 };

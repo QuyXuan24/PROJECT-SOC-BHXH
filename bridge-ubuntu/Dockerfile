@@ -1,5 +1,5 @@
-# Sử dụng Node.js bản 18 (LTS) chạy trên nền Debian/Ubuntu
-FROM node:18-bullseye
+# Sử dụng Node.js bản 18 (LTS) chạy trên nền Alpine Linux - nhẹ và nhanh
+FROM node:18-alpine
 
 # Tạo thư mục làm việc trong container
 WORKDIR /usr/src/app
@@ -7,8 +7,7 @@ WORKDIR /usr/src/app
 # Copy file cấu hình thư viện trước để tối ưu hóa cache Docker
 COPY package*.json ./
 
-# Cài đặt thư viện (bao gồm cả build-essential nếu cần biên dịch code Go/C++)
-RUN apt-get update && apt-get install -y build-essential python3
+# Cài đặt thư viện (Alpine lightweight)
 RUN npm install
 
 # Copy toàn bộ code nguồn vào container

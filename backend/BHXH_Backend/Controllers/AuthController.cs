@@ -1,14 +1,16 @@
-using Microsoft.AspNetCore.Mvc;
-using BHXH_Backend.Data;
-using BHXH_Backend.Models;
-using BHXH_Backend.Dtos;
-using Microsoft.EntityFrameworkCore;
-using BHXH_Backend.Services;
-using BCrypt.Net;
-using System.Security.Claims;
-using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
+using System.Text.RegularExpressions;
+using BHXH_Backend.Data;
+using BHXH_Backend.Dtos;
+using BHXH_Backend.Helpers;
+using BHXH_Backend.Models;
+using BHXH_Backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace BHXH_Backend.Controllers
 {
@@ -16,6 +18,9 @@ namespace BHXH_Backend.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        private const int MaxFailedAttempts = 5;
+        private const int LockoutMinutes = 30;
+
         private readonly ApplicationDbContext _context;
         private readonly SystemLogService _logService;
 
@@ -29,103 +34,194 @@ namespace BHXH_Backend.Controllers
         public async Task<ActionResult<User>> Register(RegisterDto request)
         {
             var ipAddress = GetClientIpAddress();
+            var device = GetClientDevice();
+
+            var bhxhCode = request.BhxhCode?.Trim() ?? string.Empty;
+            if (!Regex.IsMatch(bhxhCode, "^\\d{10}$"))
+            {
+                return BadRequest(new { message = "Mã số BHXH phải đúng định dạng 10 chữ số." });
+            }
+
+            if (!PasswordPolicyHelper.IsStrong(request.Password))
+            {
+                return BadRequest(new { message = PasswordPolicyHelper.PolicyDescription });
+            }
 
             if (await _context.Users.AnyAsync(u => u.Username == request.Username))
             {
-                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Tài khoản đã tồn tại.", ipAddress);
-                return BadRequest(new { message = "Tài khoản đã tồn tại." });
+                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Tên đăng nhập đã tồn tại.", ipAddress);
+                return BadRequest(new { message = "Tên đăng nhập đã tồn tại." });
             }
 
-            string passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+            {
+                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Email đã tồn tại.", ipAddress);
+                return BadRequest(new { message = "Email đã được sử dụng." });
+            }
+
+            if (await _context.Users.AnyAsync(u => u.PhoneNumber == request.PhoneNumber))
+            {
+                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Số điện thoại đã tồn tại.", ipAddress);
+                return BadRequest(new { message = "Số điện thoại đã được sử dụng." });
+            }
+
+            if (await _context.Users.AnyAsync(u => u.BhxhCode == bhxhCode))
+            {
+                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Mã số BHXH đã tồn tại.", ipAddress);
+                return BadRequest(new { message = "Mã số BHXH đã được sử dụng." });
+            }
+
             var user = new User
             {
                 Username = request.Username,
-                PasswordHash = passwordHash,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 FullName = request.FullName,
                 PhoneNumber = request.PhoneNumber,
                 Email = request.Email,
-                Role = "User",
+                Role = RoleHelper.User,
                 FailedLoginAttempts = 0,
-                BhxhCode = request.BhxhCode?.Trim() ?? string.Empty
+                BhxhCode = bhxhCode
             };
-
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            await _logService.WriteLogAsync(request.Username, "REGISTER_SUCCESS", "Đăng ký tài khoản mới thành công.", ipAddress);
+            await _logService.WriteLogAsync(
+                request.Username,
+                "REGISTER_SUCCESS",
+                $"Đăng ký thành công. Device={device}",
+                ipAddress);
 
-            return Ok(new { message = "Đăng ký thành công!" });
+            return Ok(new
+            {
+                message = "Đăng ký thành công. (Lượt demo chưa bật OTP email/SMS)",
+                requiresOtp = false
+            });
         }
 
         [HttpPost("login")]
         public async Task<ActionResult> Login(LoginDto request)
         {
             var ipAddress = GetClientIpAddress();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == request.Username);
+            var device = GetClientDevice();
+            var identifier = request.Username?.Trim() ?? string.Empty;
+
+            var user = await _context.Users.FirstOrDefaultAsync(u =>
+                u.Username == identifier ||
+                u.BhxhCode == identifier ||
+                u.Email == identifier);
 
             if (user == null)
             {
-                await _logService.WriteLogAsync(request.Username ?? "Unknown", "LOGIN_FAILED", "Tài khoản không tồn tại.", ipAddress);
+                await _logService.WriteLogAsync(identifier, "LOGIN_FAILED", $"Tài khoản không tồn tại. Device={device}", ipAddress);
                 return Unauthorized(new { message = "Tài khoản hoặc mật khẩu không đúng." });
             }
 
-            // --- TẦNG 1: KIỂM TRA ADMIN LOCK (Khóa vĩnh viễn/thủ công) ---
             if (user.IsLocked)
             {
-                await _logService.WriteLogAsync(user.Username, "LOGIN_BLOCKED", "Cố đăng nhập khi tài khoản bị Admin khóa vĩnh viễn.", ipAddress);
-                return StatusCode(403, new { message = "Tài khoản của bạn đã bị quản trị viên khóa." });
+                await _logService.WriteLogAsync(user.Username, "LOGIN_BLOCKED", $"Tài khoản bị khóa bởi Admin. Device={device}", ipAddress);
+                return StatusCode(403, new { message = "Tài khoản đã bị khóa bởi quản trị viên." });
             }
 
-            // --- TÍNH NĂNG SOC: KIỂM TRA XEM TÀI KHOẢN CÓ ĐANG BỊ KHÓA KHÔNG ---
             if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTime.UtcNow)
             {
                 var waitTime = Math.Ceiling((user.LockoutEnd.Value - DateTime.UtcNow).TotalMinutes);
-                await _logService.WriteLogAsync(user.Username, "LOGIN_BLOCKED", $"Cố đăng nhập khi tài khoản đang bị khóa.", ipAddress);
-                
-                return StatusCode(403, new { message = $"Tài khoản đã bị khóa an toàn do có dấu hiệu dò mật khẩu. Vui lòng thử lại sau {waitTime} phút nữa." });
+                await _logService.WriteLogAsync(user.Username, "LOGIN_BLOCKED", $"Tài khoản đang bị tạm khóa. Device={device}", ipAddress);
+                return StatusCode(403, new { message = $"Tài khoản đang tạm khóa. Vui lòng thử lại sau {waitTime} phút." });
             }
 
-            // --- TÍNH NĂNG SOC: KIỂM TRA MẬT KHẨU VÀ ĐẾM SỐ LẦN SAI ---
             if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             {
-                user.FailedLoginAttempts += 1; // Tăng số lần sai lên 1
+                user.FailedLoginAttempts += 1;
 
-                // Nếu sai 5 lần thì khóa 15 phút
-                if (user.FailedLoginAttempts >= 5)
+                if (user.FailedLoginAttempts >= MaxFailedAttempts)
                 {
-                    user.LockoutEnd = DateTime.UtcNow.AddMinutes(15);
-                    await _logService.WriteLogAsync(user.Username, "ACCOUNT_LOCKED", "Khóa tài khoản 15 phút do dò mật khẩu (Brute-force) 5 lần.", ipAddress);
+                    user.LockoutEnd = DateTime.UtcNow.AddMinutes(LockoutMinutes);
+                    await _logService.WriteLogAsync(
+                        user.Username,
+                        "ACCOUNT_LOCKED",
+                        $"Khóa tạm {LockoutMinutes} phút do sai mật khẩu {MaxFailedAttempts} lần. Device={device}",
+                        ipAddress);
                 }
                 else
                 {
-                    await _logService.WriteLogAsync(user.Username, "LOGIN_FAILED", $"Sai mật khẩu lần {user.FailedLoginAttempts}/5.", ipAddress);
+                    await _logService.WriteLogAsync(
+                        user.Username,
+                        "LOGIN_FAILED",
+                        $"Sai mật khẩu lần {user.FailedLoginAttempts}/{MaxFailedAttempts}. Device={device}",
+                        ipAddress);
                 }
 
-                await _context.SaveChangesAsync(); // Lưu trạng thái đếm vào DB
+                await _context.SaveChangesAsync();
                 return Unauthorized(new { message = "Tài khoản hoặc mật khẩu không đúng." });
             }
 
-            // --- ĐĂNG NHẬP THÀNH CÔNG: Xóa lịch sử lỗi (Reset bộ đếm về 0) ---
             user.FailedLoginAttempts = 0;
             user.LockoutEnd = null;
+
+            var normalizedRole = RoleHelper.Normalize(user.Role);
+            if (!string.Equals(user.Role, normalizedRole, StringComparison.Ordinal))
+            {
+                user.Role = normalizedRole;
+            }
+
             await _context.SaveChangesAsync();
 
-            await _logService.WriteLogAsync(user.Username, "LOGIN_SUCCESS", "Đăng nhập thành công.", ipAddress);
+            await _logService.WriteLogAsync(
+                user.Username,
+                "LOGIN_SUCCESS",
+                $"Đăng nhập thành công. Device={device}",
+                ipAddress);
 
-            string token = CreateToken(user);
-            return Ok(new { token = token, message = "Đăng nhập thành công!" });
+            var token = CreateToken(user, normalizedRole);
+            var redirectPath = RoleHelper.GetDashboardPath(normalizedRole);
+
+            return Ok(new
+            {
+                token,
+                role = normalizedRole,
+                redirectPath,
+                message = "Đăng nhập thành công!"
+            });
         }
 
-        private string CreateToken(User user)
+        [HttpGet("login-history")]
+        [Authorize]
+        public async Task<IActionResult> GetLoginHistory()
         {
-            var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET") ?? "khoa_bi_mat_mac_dinh_dai_hon_32_ky_tu_abcd";
-
-            List<Claim> claims = new List<Claim>
+            var username = User.Identity?.Name;
+            if (string.IsNullOrWhiteSpace(username))
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username),
-                new Claim(ClaimTypes.Role, user.Role)
+                return Unauthorized();
+            }
+
+            var entries = await _context.SystemLogs
+                .Where(l => l.Username == username && (l.Action == "LOGIN_SUCCESS" || l.Action == "LOGIN_FAILED" || l.Action == "LOGIN_BLOCKED"))
+                .OrderByDescending(l => l.CreatedAt)
+                .Take(10)
+                .Select(l => new
+                {
+                    action = l.Action,
+                    ipAddress = l.IpAddress,
+                    time = l.CreatedAt,
+                    details = l.Content
+                })
+                .ToListAsync();
+
+            return Ok(entries);
+        }
+
+        private string CreateToken(User user, string normalizedRole)
+        {
+            var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET")
+                ?? HttpContext.RequestServices.GetRequiredService<IConfiguration>()["JwtSettings:SecretKey"]
+                ?? throw new InvalidOperationException("JWT secret not configured.");
+
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new(ClaimTypes.Name, user.Username),
+                new(ClaimTypes.Role, normalizedRole)
             };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
@@ -142,12 +238,24 @@ namespace BHXH_Backend.Controllers
 
         private string GetClientIpAddress()
         {
-            var ipAddress = Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (string.IsNullOrEmpty(ipAddress))
+            var xForwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(xForwardedFor))
             {
-                ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+                return xForwardedFor.Split(',').First().Trim();
             }
-            return ipAddress;
+
+            return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+        }
+
+        private string GetClientDevice()
+        {
+            var userAgent = Request.Headers["User-Agent"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(userAgent))
+            {
+                return "Unknown Device";
+            }
+
+            return userAgent.Length > 160 ? userAgent[..160] : userAgent;
         }
     }
 }

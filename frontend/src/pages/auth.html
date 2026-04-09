@@ -43,7 +43,7 @@
             <div class="tab-pane fade show active" id="login-pane" role="tabpanel">
                 <form id="citizenLoginForm">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Tên đăng nhập <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold">Tên đăng nhập / Mã BHXH / Email <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <span class="input-group-text bg-light"><i class="fas fa-id-card text-muted"></i></span>
                             <input
@@ -51,7 +51,7 @@
                                 id="loginUsername"
                                 name="username"
                                 class="form-control"
-                                placeholder="Nhập tên đăng nhập..."
+                                placeholder="Nhập username hoặc mã BHXH..."
                                 minlength="4"
                                 maxlength="20"
                                 pattern="[A-Za-z0-9]+"
@@ -74,6 +74,9 @@
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100 fw-bold py-2 mb-3">ĐĂNG NHẬP</button>
+                    <div class="d-grid gap-2 mb-3">
+                        <a href="/" class="btn btn-outline-secondary btn-sm">Quay lại trang chủ</a>
+                    </div>
                     <div class="text-center">
                         <a href="#" class="text-decoration-none text-muted small">Quên mật khẩu?</a>
                     </div>
@@ -100,8 +103,8 @@
                         <input type="text" name="phoneNumber" class="form-control" placeholder="Nhập số điện thoại..." minlength="8" maxlength="20" pattern="[0-9+\-\s()]+" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Mã số BHXH (nếu có)</label>
-                        <input type="text" name="bhxhCode" class="form-control" placeholder="Nhập mã số BHXH..." maxlength="30" pattern="[0-9]*">
+                        <label class="form-label fw-bold">Mã số BHXH <span class="text-danger">*</span></label>
+                        <input type="text" name="bhxhCode" class="form-control" placeholder="Nhập 10 chữ số mã BHXH..." maxlength="10" pattern="[0-9]{10}" required>
                     </div>
                     <div class="mb-4">
                         <label class="form-label fw-bold">Mật khẩu <span class="text-danger">*</span></label>

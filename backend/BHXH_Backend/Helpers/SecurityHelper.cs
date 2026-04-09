@@ -11,10 +11,13 @@ namespace BHXH_Backend.Helpers
         {
             if (string.IsNullOrEmpty(plainText)) return plainText;
 
-            // Chuyển key thành dạng byte
             byte[] keyBytes = Encoding.UTF8.GetBytes(key);
-            // Vector khởi tạo (IV) mặc định rỗng cho đơn giản
-            byte[] iv = new byte[16]; 
+            if (keyBytes.Length != 32)
+            {
+                throw new ArgumentException("AES key must be 32 bytes (AES-256).");
+            }
+
+            var iv = RandomNumberGenerator.GetBytes(16);
 
             using (var aes = Aes.Create())
             {
@@ -34,7 +37,9 @@ namespace BHXH_Backend.Helpers
                             sw.Write(plainText);
                         }
                     }
-                    return Convert.ToBase64String(ms.ToArray());
+
+                    // Luu theo dinh dang iv:cipher de decrypt duoc o cac lan sau.
+                    return $"{Convert.ToBase64String(iv)}:{Convert.ToBase64String(ms.ToArray())}";
                 }
             }
         }
@@ -48,8 +53,26 @@ namespace BHXH_Backend.Helpers
             try 
             {
                 byte[] keyBytes = Encoding.UTF8.GetBytes(key);
-                byte[] iv = new byte[16];
-                byte[] buffer = Convert.FromBase64String(cipherText);
+                if (keyBytes.Length != 32)
+                {
+                    throw new ArgumentException("AES key must be 32 bytes (AES-256).");
+                }
+
+                byte[] iv;
+                byte[] buffer;
+                var parts = cipherText.Split(':', 2);
+
+                // Backward-compatible: du lieu cu khong co IV se dung zero IV.
+                if (parts.Length == 2)
+                {
+                    iv = Convert.FromBase64String(parts[0]);
+                    buffer = Convert.FromBase64String(parts[1]);
+                }
+                else
+                {
+                    iv = new byte[16];
+                    buffer = Convert.FromBase64String(cipherText);
+                }
 
                 using (var aes = Aes.Create())
                 {

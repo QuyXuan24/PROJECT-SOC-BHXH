@@ -8,15 +8,19 @@ public class BlockchainService
 {
     private readonly string _bridgeUrl;
     private readonly string _verifyUrl;
-    private readonly HttpClient _httpClient = new HttpClient();
+    private readonly HttpClient _httpClient;
     private readonly ILogger<BlockchainService> _logger;
 
-    public BlockchainService(IConfiguration configuration, ILogger<BlockchainService> logger)
+    public BlockchainService(
+        IConfiguration configuration,
+        IHttpClientFactory httpClientFactory,
+        ILogger<BlockchainService> logger)
     {
         _bridgeUrl = configuration["BlockchainSettings:BridgeUrl"]
             ?? throw new Exception("Chua cau hinh BridgeUrl trong appsettings.json");
         _verifyUrl = configuration["BlockchainSettings:VerifyUrl"]
             ?? DeriveVerifyUrl(_bridgeUrl);
+        _httpClient = httpClientFactory.CreateClient(nameof(BlockchainService));
         _logger = logger;
     }
 

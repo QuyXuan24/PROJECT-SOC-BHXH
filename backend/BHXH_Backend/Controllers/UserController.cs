@@ -1,15 +1,14 @@
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using BHXH_Backend.Data;
 using BHXH_Backend.Helpers;
 using BHXH_Backend.Models;
 using BHXH_Backend.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace BHXH_Backend.Controllers
 {
-    // DTO: Khuon mau du lieu User gui len.
     public class UserProfileDto
     {
         public required string FullName { get; set; }
@@ -20,11 +19,18 @@ namespace BHXH_Backend.Controllers
         public required string PhoneNumber { get; set; }
         public required string Address { get; set; }
         public required string BhxhCode { get; set; }
+        public string? CompanyName { get; set; }
+        public decimal? Salary { get; set; }
+    }
+
+    public class CancelApplicationDto
+    {
+        public required string Reason { get; set; }
     }
 
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize]
+    [Authorize(Roles = "User")]
     public class UserController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -52,6 +58,15 @@ namespace BHXH_Backend.Controllers
                 return Unauthorized();
             }
 
+            if (string.IsNullOrWhiteSpace(req.FullName) || string.IsNullOrWhiteSpace(req.Cccd) || string.IsNullOrWhiteSpace(req.BhxhCode))
+            {
+                return BadRequest(new { message = "Thong tin ho so khong hop le." });
+            }
+            if (req.Salary.HasValue && req.Salary.Value < 0)
+            {
+                return BadRequest(new { message = "Luong phai >= 0." });
+            }
+
             var actor = User.Identity?.Name ?? "Unknown";
             var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
@@ -76,6 +91,8 @@ namespace BHXH_Backend.Controllers
                     PhoneNumber = SecurityHelper.Encrypt(req.PhoneNumber, aesKey),
                     Address = SecurityHelper.Encrypt(req.Address, aesKey),
                     BhxhCode = SecurityHelper.Encrypt(req.BhxhCode, aesKey),
+                    CompanyName = string.IsNullOrWhiteSpace(req.CompanyName) ? null : req.CompanyName.Trim(),
+                    Salary = req.Salary,
                     Status = "Pending",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -95,6 +112,14 @@ namespace BHXH_Backend.Controllers
                 record.PhoneNumber = SecurityHelper.Encrypt(req.PhoneNumber, aesKey);
                 record.Address = SecurityHelper.Encrypt(req.Address, aesKey);
                 record.BhxhCode = SecurityHelper.Encrypt(req.BhxhCode, aesKey);
+                if (!string.IsNullOrWhiteSpace(req.CompanyName))
+                {
+                    record.CompanyName = req.CompanyName.Trim();
+                }
+                if (req.Salary.HasValue)
+                {
+                    record.Salary = req.Salary.Value;
+                }
                 record.Status = "Pending";
                 record.UpdatedAt = DateTime.UtcNow;
             }
@@ -120,9 +145,118 @@ namespace BHXH_Backend.Controllers
 
             return Ok(new
             {
-                message = "Nop ho so thanh cong! Vui long cho Staff xet duyet.",
+                message = "Nop ho so thanh cong! Vui long cho nhan vien xet duyet.",
+                recordId = record.Id,
                 blockchainSynced
             });
+        }
+
+        [HttpPost("applications/{id}/cancel")]
+        public async Task<IActionResult> CancelPendingApplication(int id, [FromBody] CancelApplicationDto request)
+        {
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var reason = request.Reason?.Trim() ?? string.Empty;
+            if (reason.Length < 10)
+            {
+                return BadRequest(new { message = "Ly do huy phai toi thieu 10 ky tu." });
+            }
+
+            var record = await _context.BhxhRecords.FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
+            if (record == null)
+            {
+                return NotFound(new { message = "Khong tim thay ho so." });
+            }
+
+            if (!string.Equals(record.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Chi duoc huy ho so o trang thai cho duyet." });
+            }
+
+            record.Status = "Cancelled";
+            record.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            await _logService.WriteLogAsync(User.Identity?.Name, "CANCEL_APPLICATION", $"Nguoi dung huy ho so ID: {record.Id}. Ly do: {reason}");
+            return Ok(new { message = "Da huy ho so thanh cong." });
+        }
+
+        [HttpGet("applications")]
+        public async Task<IActionResult> GetMyApplications()
+        {
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var records = await _context.BhxhRecords
+                .Where(r => r.UserId == userId)
+                .OrderByDescending(r => r.CreatedAt)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.Status,
+                    submittedAt = r.CreatedAt,
+                    updatedAt = r.UpdatedAt
+                })
+                .ToListAsync();
+
+            var result = new List<object>();
+            foreach (var record in records)
+            {
+                string? failureReason = null;
+                if (record.Status == "Rejected")
+                {
+                    failureReason = await _context.SystemLogs
+                        .Where(l => l.Action == "PROCESS_RECORD" && l.Content.Contains($"ID: {record.Id}") && l.Content.Contains("Rejected"))
+                        .OrderByDescending(l => l.CreatedAt)
+                        .Select(l => l.Content)
+                        .FirstOrDefaultAsync();
+                }
+
+                result.Add(new
+                {
+                    record.Id,
+                    record.Status,
+                    record.submittedAt,
+                    record.updatedAt,
+                    failureReason
+                });
+            }
+
+            return Ok(result);
+        }
+
+        [HttpGet("applications/{id}/timeline")]
+        public async Task<IActionResult> GetApplicationTimeline(int id)
+        {
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
+
+            var record = await _context.BhxhRecords.FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
+            if (record == null)
+            {
+                return NotFound(new { message = "Khong tim thay ho so." });
+            }
+
+            var timeline = await _context.SystemLogs
+                .Where(l => l.Content.Contains($"ID: {id}"))
+                .OrderBy(l => l.CreatedAt)
+                .Select(l => new
+                {
+                    l.CreatedAt,
+                    l.Username,
+                    l.Action,
+                    l.Content
+                })
+                .ToListAsync();
+
+            return Ok(timeline);
         }
 
         [HttpGet("profile/verify")]
@@ -181,17 +315,30 @@ namespace BHXH_Backend.Controllers
                 return StatusCode(500, new { message = "He thong chua cau hinh AesSettings:Key." });
             }
 
+            string? latestProcessNote = null;
+            if (record.Status == "Rejected" || record.Status == "Cancelled")
+            {
+                latestProcessNote = await _context.SystemLogs
+                    .Where(l => l.Content.Contains($"ID: {record.Id}") && (l.Action == "PROCESS_RECORD" || l.Action == "CANCEL_APPLICATION"))
+                    .OrderByDescending(l => l.CreatedAt)
+                    .Select(l => l.Content)
+                    .FirstOrDefaultAsync();
+            }
+
             return Ok(new
             {
+                RecordId = record.Id,
                 Status = record.Status,
-                Note = record.Status == "Pending" ? "Dang cho duyet" : "Da duoc duyet",
+                Note = latestProcessNote,
                 FullName = record.FullName,
                 DateOfBirth = record.DateOfBirth.ToString("dd/MM/yyyy"),
                 Gender = record.Gender,
                 Cccd = SecurityHelper.Decrypt(record.Cccd, aesKey),
                 PhoneNumber = SecurityHelper.Decrypt(record.PhoneNumber, aesKey),
                 Address = SecurityHelper.Decrypt(record.Address, aesKey),
-                BhxhCode = SecurityHelper.Decrypt(record.BhxhCode, aesKey)
+                BhxhCode = SecurityHelper.Decrypt(record.BhxhCode, aesKey),
+                CompanyName = record.CompanyName,
+                Salary = record.Salary
             });
         }
 
@@ -209,7 +356,6 @@ namespace BHXH_Backend.Controllers
 
         private static string BuildEncryptedProfileSnapshot(BhxhRecord record)
         {
-            // Snapshot hash dựa trên dữ liệu đã mã hóa AES và metadata quan trọng.
             var profileDate = record.DateOfBirth.Date.ToString("yyyy-MM-dd");
             var versionTicks = (record.UpdatedAt ?? record.CreatedAt).Ticks;
             return string.Join("|",
@@ -223,6 +369,8 @@ namespace BHXH_Backend.Controllers
                 $"PhoneEncrypted={record.PhoneNumber}",
                 $"AddressEncrypted={record.Address}",
                 $"BhxhCodeEncrypted={record.BhxhCode}",
+                $"CompanyName={record.CompanyName}",
+                $"Salary={record.Salary}",
                 $"VersionTicks={versionTicks}");
         }
     }
