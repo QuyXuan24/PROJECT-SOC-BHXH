@@ -1,62 +1,76 @@
 using BHXH_Backend.Data;
-using Microsoft.EntityFrameworkCore;
+using BHXH_Backend.Middlewares;
+using BHXH_Backend.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using BHXH_Backend.Services;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. KẾT NỐI DATABASE
-var connectionString =  Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-?? builder.Configuration.GetConnectionString("DefaultConnection");
+var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Missing connection string: ConnectionStrings:DefaultConnection");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection")
-    )
-);
+    options.UseSqlServer(connectionString));
 
-// 2. CẤU HÌNH BẢO MẬT JWT (Vẫn giữ logic bảo mật, chỉ bỏ giao diện ổ khóa)
-var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET") ?? "khoa_bi_mat_mac_dinh_dai_hon_32_ky_tu_abcd";
+var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? builder.Configuration["JwtSettings:SecretKey"]
+    ?? throw new InvalidOperationException("Missing JWT secret (JWT_SECRET or JwtSettings:SecretKey).");
+
+if (jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("JWT secret must be at least 32 characters.");
+}
+
 var keyBytes = Encoding.UTF8.GetBytes(jwtKey);
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(keyBytes),
-            ValidateIssuer = false, 
-            ValidateAudience = false
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 
+builder.Services.AddAuthorization();
 builder.Services.AddControllers();
-
-// 3. SWAGGER ĐƠN GIẢN (Theo chuẩn mới)
-// Không cấu hình rườm rà nữa, để mặc định cho nó tự chạy
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(); 
-builder.Services.AddScoped<BHXH_Backend.Services.SystemLogService>();
-builder.Services.AddScoped<BHXH_Backend.Services.BlockchainService>();
+builder.Services.AddSwaggerGen();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<SystemLogService>();
+builder.Services.AddScoped<BlockchainService>();
+builder.Services.AddScoped<SecurityAnalyticsService>();
+builder.Services.AddScoped<VietQrService>();
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", builder =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        builder.AllowAnyOrigin()
-               .AllowAnyMethod()
-               .AllowAnyHeader();
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
 var app = builder.Build();
 
-
-// AUTO MIGRATION (Tự tạo bảng nếu chưa có)
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -65,51 +79,51 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        logger.LogInformation("Dang cho SQL Server khoi dong...");
-        
-        // Thử kết nối 10 lần, mỗi lần cách nhau 5 giây
-        int retries = 10;
+        logger.LogInformation("Waiting for SQL Server startup...");
+
+        var retries = 10;
         while (retries > 0)
         {
             try
             {
                 if (context.Database.CanConnect())
                 {
-                    logger.LogInformation("Da ket noi Database thanh cong! Dang Migrate...");
-                    context.Database.Migrate(); // Tạo bảng
-                    break; // Thành công thì thoát vòng lặp
+                    logger.LogInformation("Database connected. Running migrations...");
+                    context.Database.Migrate();
+                    break;
                 }
             }
-            catch (Exception)
+            catch
             {
                 retries--;
-                if (retries == 0) throw; // Hết lượt thì báo lỗi
-                logger.LogWarning($"Ket noi that bai. Thu lai sau 5s... (Con {retries} lan)");
-                System.Threading.Thread.Sleep(5000); // Chờ 5 giây
+                if (retries == 0)
+                {
+                    throw;
+                }
+
+                logger.LogWarning("Database connection failed. Retry in 5s... ({Retries} left)", retries);
+                Thread.Sleep(5000);
             }
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "LOI NGHIEM TRONG: Khong the ket noi Database!");
+        logger.LogError(ex, "Cannot connect to database.");
     }
 }
 
-// CẤU HÌNH HTTP REQUEST
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-
-app.UseMiddleware<BHXH_Backend.Middlewares.RequestLoggingMiddleware>();
-
-//app.UseHttpsRedirection();
-
+app.UseForwardedHeaders();
+app.UseMiddleware<BlockedIpMiddleware>();
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseCors("AllowAll");
-app.UseAuthentication(); // Xác thực
-app.UseAuthorization();  // Phân quyền
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 

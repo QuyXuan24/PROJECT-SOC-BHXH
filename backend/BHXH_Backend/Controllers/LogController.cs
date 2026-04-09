@@ -1,7 +1,7 @@
+﻿using BHXH_Backend.Data;
+using BHXH_Backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using BHXH_Backend.Data;
-using BHXH_Backend.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace BHXH_Backend.Controllers
@@ -11,68 +11,154 @@ namespace BHXH_Backend.Controllers
     public class LogController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly SystemLogService _logService;
 
-        public LogController(ApplicationDbContext context)
+        public LogController(ApplicationDbContext context, SystemLogService logService)
         {
             _context = context;
+            _logService = logService;
         }
 
-        // =========================================================
-        // 1. API GET: XEM NHẬT KÝ (CHỈ ADMIN VÀ SOC ĐƯỢC XEM)
-        // =========================================================
         [HttpGet]
-        [Authorize(Roles = "Admin, SOC")] // 👇 Chốt chặn an ninh đặt riêng ở đây
-        public async Task<IActionResult> GetSystemLogs([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+        [Authorize(Roles = "Admin,Security,SOC")]
+        public async Task<IActionResult> GetSystemLogs(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 50,
+            [FromQuery] string? search = null,
+            [FromQuery] string? action = null,
+            [FromQuery] string? severity = null,
+            [FromQuery] string? ipAddress = null,
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null,
+            [FromQuery] bool includeTotal = false,
+            CancellationToken cancellationToken = default)
         {
             try
             {
-                // Lấy 100 dòng log mới nhất, cái mới hiện lên đầu
-                var logs = await _context.SystemLogs
-                .OrderByDescending(l => l.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+                page = Math.Max(1, page);
+                pageSize = Math.Clamp(pageSize, 1, 500);
+
+                var query = _context.SystemLogs.AsNoTracking().AsQueryable();
+
+                if (!string.IsNullOrWhiteSpace(search))
+                {
+                    var keyword = search.Trim();
+                    query = query.Where(l =>
+                        (l.Action != null && l.Action.Contains(keyword)) ||
+                        (l.Content != null && l.Content.Contains(keyword)) ||
+                        (l.Username != null && l.Username.Contains(keyword)) ||
+                        (l.IpAddress != null && l.IpAddress.Contains(keyword)));
+                }
+
+                if (!string.IsNullOrWhiteSpace(action))
+                {
+                    var actionFilter = action.Trim();
+                    query = query.Where(l => l.Action != null && l.Action.Contains(actionFilter));
+                }
+
+                if (!string.IsNullOrWhiteSpace(ipAddress))
+                {
+                    var ipFilter = ipAddress.Trim();
+                    query = query.Where(l => l.IpAddress != null && l.IpAddress.Contains(ipFilter));
+                }
+
+                if (from.HasValue)
+                {
+                    query = query.Where(l => l.CreatedAt >= from.Value);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(l => l.CreatedAt <= to.Value);
+                }
+
+                if (!string.IsNullOrWhiteSpace(severity))
+                {
+                    var sev = severity.Trim().ToLowerInvariant();
+                    query = sev switch
+                    {
+                        "critical" => query.Where(l => l.Action.Contains("ERROR") || l.Action.Contains("UNAUTHORIZED") || l.Action.Contains("FORBIDDEN")),
+                        "high" => query.Where(l => l.Action.Contains("FAILED") || l.Action.Contains("LOCK") || l.Action.Contains("BLOCK")),
+                        "medium" => query.Where(l => l.Action.Contains("MODE") || l.Action.Contains("PROCESS")),
+                        "low" => query.Where(l => l.Action.Contains("SUCCESS") || l.Action.Contains("VIEW") || l.Action.Contains("GET")),
+                        _ => query
+                    };
+                }
+
+                var total = includeTotal ? await query.CountAsync(cancellationToken) : 0;
+
+                var logs = await query
+                    .OrderByDescending(l => l.CreatedAt)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync(cancellationToken);
+
+                if (includeTotal)
+                {
+                    return Ok(new
+                    {
+                        items = logs,
+                        total,
+                        page,
+                        pageSize
+                    });
+                }
 
                 return Ok(logs);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = "Lỗi hệ thống khi lấy log", error = ex.Message });
+                return StatusCode(500, new { message = "Loi he thong khi lay log", error = ex.Message });
             }
         }
 
-        // =========================================================
-        // 2. API POST: GHI NHẬT KÝ (MỞ CỬA CHO HỆ THỐNG TỰ GHI)
-        // =========================================================
-        // Không đặt [Authorize] ở đây để ai (hoặc hệ thống) cũng có thể gửi log cảnh báo
         [HttpPost]
-        [Authorize] // 👈 Bảo vệ API này, chỉ cho phép người dùng đã đăng nhập (Admin, SOC, Staff) mới được ghi log
+        [Authorize]
         public async Task<IActionResult> WriteLog([FromBody] LogRequestDto request)
         {
-            // TỰ ĐỘNG BẮT IP: Chụp ngay IP của kẻ vừa gửi request
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
-            var newLog = new SystemLog
+            await _logService.WriteLogAsync(
+                request.Username ?? User.Identity?.Name ?? "He thong",
+                request.Action,
+                request.Content,
+                ipAddress);
+
+            return Ok(new { message = "Da ghi log thanh cong!" });
+        }
+
+        [HttpGet("mode")]
+        [Authorize(Roles = "Admin,Security,SOC")]
+        public IActionResult GetLoggingMode()
+        {
+            return Ok(new { detailedLoggingEnabled = _logService.IsDetailedLoggingEnabled });
+        }
+
+        [HttpPut("mode")]
+        [Authorize(Roles = "Security,SOC")]
+        public async Task<IActionResult> SetLoggingMode([FromBody] SetLogModeRequest request)
+        {
+            var actor = User.Identity?.Name ?? "Security";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
+
+            await _logService.SetDetailedLoggingModeAsync(actor, request.Enabled, ipAddress);
+            return Ok(new
             {
-                Username = request.Username ?? "Khách vãng lai / Hệ thống",
-                Action = request.Action,
-                Content = request.Content,
-                IpAddress = ipAddress,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.SystemLogs.Add(newLog);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Đã ghi log thành công!", data = newLog });
+                message = "Da cap nhat che do ghi log.",
+                detailedLoggingEnabled = request.Enabled
+            });
         }
     }
 
-    // Class phụ (DTO) để nhận dữ liệu từ Frontend gửi lên khi muốn ghi log
     public class LogRequestDto
     {
         public string? Username { get; set; }
         public required string Action { get; set; }
         public required string Content { get; set; }
+    }
+
+    public class SetLogModeRequest
+    {
+        public bool Enabled { get; set; }
     }
 }

@@ -1,0 +1,12 @@
+{
+  "name": "soc-blockchain-bridge",
+  "version": "1.0.0",
+  "description": "Cầu nối giữa .NET Backend và Hyperledger Fabric",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "fabric-network": "^2.2.14",
+    "fabric-ca-client": "^2.2.14"
+  }
+}

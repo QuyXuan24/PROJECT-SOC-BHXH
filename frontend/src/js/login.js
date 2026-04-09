@@ -1,26 +1,38 @@
-import { loginUser } from '../services/authApi.js';
+import { loginUser } from '/services/authApi.js';
+import { setToken } from '/services/tokenService.js';
 
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault(); 
-    
-    const user = document.getElementById('username').value;
-    const pass = document.getElementById('password').value;
-    const errorBox = document.getElementById('errorMessage');
-    
-    errorBox.classList.add('d-none');
-    
-    const result = await loginUser(user, pass);
-    
-    if (result) {
-        alert("Đăng nhập thành công! Đang chuyển hướng...");
-        
-        // 1. Lưu token vào LocalStorage để dùng cho các trang sau
-        localStorage.setItem('soc_token', result.token); 
-        
-        // 2. Chuyển hướng sang trang Dashboard
-        window.location.href = 'dashboard.html';
-    } else {
-        errorBox.textContent = "Sai tài khoản hoặc mật khẩu, hoặc server từ chối kết nối!";
-        errorBox.classList.remove('d-none');
-    }
-});
+const loginForm = document.getElementById('loginForm');
+
+if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const userField = document.getElementById('username');
+        const passField = document.getElementById('password');
+        const errorBox = document.getElementById('errorMessage');
+        const btn = e.target.querySelector('button[type="submit"]');
+
+        const originalBtnText = btn.innerHTML;
+
+        errorBox.classList.add('d-none');
+        errorBox.textContent = '';
+
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Đang xác thực...';
+        btn.disabled = true;
+
+        try {
+            const result = await loginUser(userField.value.trim(), passField.value);
+            if (!result?.success || !result?.token) {
+                throw new Error(result?.message || 'Đăng nhập thất bại.');
+            }
+
+            setToken(result.token);
+            window.location.href = result.redirectPath || '/security/dashboard';
+        } catch (error) {
+            errorBox.textContent = error?.message || 'Loi ket noi den backend.';
+            errorBox.classList.remove('d-none');
+            btn.innerHTML = originalBtnText;
+            btn.disabled = false;
+        }
+    });
+}

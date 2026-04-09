@@ -20,6 +20,20 @@ namespace BHXH_Backend.Dtos
         [Required(ErrorMessage = "Họ tên là bắt buộc")]
         [StringLength(100, ErrorMessage = "Tên quá dài")]
         public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Số điện thoại là bắt buộc")]
+        [StringLength(20, MinimumLength = 8, ErrorMessage = "Số điện thoại không hợp lệ")]
+        [RegularExpression(@"^[0-9+\-\s()]+$", ErrorMessage = "Số điện thoại chỉ gồm chữ số và ký tự + - ( ) khoảng trắng")]
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email là bắt buộc")]
+        [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+        [StringLength(200)]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Ma so BHXH la bat buoc")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Ma so BHXH phai dung 10 chu so")]
+        public string? BhxhCode { get; set; }
     }
 
     // Dữ liệu client gửi lên khi Đăng nhập
