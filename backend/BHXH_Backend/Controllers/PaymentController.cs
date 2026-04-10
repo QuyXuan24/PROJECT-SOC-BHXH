@@ -39,6 +39,11 @@ namespace BHXH_Backend.Controllers
                 return BadRequest(new { message = "Dữ liệu yêu cầu thanh toán không hợp lệ." });
             }
 
+            if (request.Amount < 100000)
+            {
+                return BadRequest(new { message = "Số tiền tối thiểu là 100.000 VND." });
+            }
+
             if (!TryGetCurrentUserId(out var userId))
             {
                 return Unauthorized();
@@ -46,10 +51,8 @@ namespace BHXH_Backend.Controllers
 
             var actor = User.FindFirst(ClaimTypes.Name)?.Value ?? "User";
             var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
-            var paymentCode = GeneratePaymentCode();
-            
-            var qrPayload = _qrService.GenerateQrPayload(request.Amount, request.Description);
-            var qrImageUrl = _qrService.GenerateQrImageUrl(qrPayload);
+            var description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+            var qrAddInfo = description ?? string.Empty;
 
             var payment = new PaymentRecord
             {
@@ -57,9 +60,9 @@ namespace BHXH_Backend.Controllers
                 BhxhCode = request.BhxhCode.Trim(),
                 Amount = request.Amount,
                 Currency = string.IsNullOrWhiteSpace(request.Currency) ? "VND" : request.Currency.Trim().ToUpperInvariant(),
-                Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
-                PaymentCode = paymentCode,
-                QrPayload = qrPayload,
+                Description = description,
+                PaymentCode = GeneratePaymentCode(),
+                QrPayload = _qrService.GenerateQrPayload(request.Amount, qrAddInfo),
                 Status = "Pending",
                 CreatedAt = DateTime.UtcNow
             };
@@ -76,6 +79,9 @@ namespace BHXH_Backend.Controllers
                 actorIp,
                 recordKey);
 
+            payment.BlockchainSynced = blockchainSynced;
+            await _context.SaveChangesAsync();
+
             await _logService.WriteLogAsync(
                 actor,
                 "PAYMENT_REQUEST",
@@ -87,8 +93,11 @@ namespace BHXH_Backend.Controllers
                 message = "Yêu cầu thanh toán đã được tạo. Vui lòng chờ nhân viên xác nhận.",
                 paymentId = payment.Id,
                 paymentCode = payment.PaymentCode,
+                amount = payment.Amount,
+                currency = payment.Currency,
+                description = payment.Description,
                 qrPayload = payment.QrPayload,
-                qrImageUrl = qrImageUrl,
+                qrImageUrl = _qrService.GenerateQrImageUrl(payment.Amount, qrAddInfo),
                 status = payment.Status,
                 blockchainSynced
             });
@@ -215,9 +224,9 @@ namespace BHXH_Backend.Controllers
                 return BadRequest(new { message = "Yêu cầu này đã bị từ chối." });
             }
 
-            if (payment.Status == "Cancelled" && request.Action == "Approved")
+            if (payment.Status == "Cancelled")
             {
-                return BadRequest(new { message = "Yêu cầu đã bị hủy, không thể xác nhận." });
+                return BadRequest(new { message = "Yêu cầu đã bị hủy, không thể xử lý." });
             }
 
             if (request.Action != "Approved" && request.Action != "Rejected")
@@ -242,6 +251,9 @@ namespace BHXH_Backend.Controllers
                 blockchainMessage,
                 actorIp,
                 recordKey);
+
+            payment.BlockchainSynced = blockchainSynced;
+            await _context.SaveChangesAsync();
 
             await _logService.WriteLogAsync(
                 actor,

@@ -24,22 +24,42 @@ const parseResponseBody = async (response) => {
     }
 };
 
+const looksLikeHtml = (value) => {
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    return /<\s*(!doctype|html|head|body)\b/i.test(value);
+};
+
 const extractMessage = (payload, fallback) => {
     if (!payload) {
         return fallback;
     }
 
     if (typeof payload === 'string') {
-        return payload || fallback;
+        return looksLikeHtml(payload)
+            ? `${fallback} (API dang tra ve HTML thay vi JSON)`
+            : (payload || fallback);
     }
 
-    return payload.message || payload.title || fallback;
+    const message = payload.message || payload.title || fallback;
+    return looksLikeHtml(message)
+        ? `${fallback} (API dang tra ve HTML thay vi JSON)`
+        : message;
 };
 
 const ensureSuccess = async (response, fallbackMessage) => {
     const result = await parseResponseBody(response);
     if (!response.ok) {
         const error = new Error(extractMessage(result, fallbackMessage));
+        error.status = response.status;
+        error.payload = result;
+        throw error;
+    }
+
+    if (looksLikeHtml(result)) {
+        const error = new Error(`${fallbackMessage} (API dang tra ve HTML thay vi JSON)`);
         error.status = response.status;
         error.payload = result;
         throw error;
@@ -55,7 +75,7 @@ export const submitInsuranceProfile = async (token, payload) => {
         body: JSON.stringify(payload)
     });
 
-    return ensureSuccess(response, 'Không thể nộp hồ sơ.');
+    return ensureSuccess(response, 'Khong the nop ho so.');
 };
 
 export const getMyProfile = async (token) => {
@@ -64,7 +84,7 @@ export const getMyProfile = async (token) => {
         headers: withAuthHeaders(token)
     });
 
-    return ensureSuccess(response, 'Không thể lấy hồ sơ.');
+    return ensureSuccess(response, 'Khong the lay ho so.');
 };
 
 export const getMyApplications = async (token) => {
@@ -73,7 +93,7 @@ export const getMyApplications = async (token) => {
         headers: withAuthHeaders(token)
     });
 
-    const result = await ensureSuccess(response, 'Không thể lấy danh sách hồ sơ.');
+    const result = await ensureSuccess(response, 'Khong the lay danh sach ho so.');
     return Array.isArray(result) ? result : [];
 };
 
@@ -83,7 +103,7 @@ export const getApplicationTimeline = async (token, id) => {
         headers: withAuthHeaders(token)
     });
 
-    const result = await ensureSuccess(response, 'Không thể lấy timeline.');
+    const result = await ensureSuccess(response, 'Khong the lay timeline.');
     return Array.isArray(result) ? result : [];
 };
 
@@ -94,5 +114,5 @@ export const cancelApplication = async (token, id, reason) => {
         body: JSON.stringify({ reason })
     });
 
-    return ensureSuccess(response, 'Không thể hủy hồ sơ.');
+    return ensureSuccess(response, 'Khong the huy ho so.');
 };

@@ -32,7 +32,13 @@
                         </div>
                         <div class="mb-2">
                             <small class="text-muted">Số tài khoản</small>
-                            <div class="fw-semibold font-monospace">0702633853</div>
+                            <div class="fw-semibold font-monospace" id="bankAccountNumber">0702633853</div>
+                            <div class="mt-2 d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" id="copyAccountBtn">
+                                    <i class="fas fa-copy me-1"></i>Copy STK
+                                </button>
+                                <small id="copyAccountNotice" class="text-success d-none">Đã copy số tài khoản</small>
+                            </div>
                         </div>
                         <div class="mb-2">
                             <small class="text-muted">Chủ tài khoản</small>
@@ -64,7 +70,7 @@
                                 <div class="input-group">
                                     <span class="input-group-text">₫</span>
                                     <input type="text" id="amount" class="form-control" inputmode="numeric" autocomplete="off"
-                                        placeholder="Nhập số tiền tùy ý (vd: 300000 hoặc 300k hoặc 3m)" required pattern="[0-9kmKM]*" />
+                                        placeholder="Nhập số tiền tùy ý (vd: 300000 hoặc 300k hoặc 3m)" required pattern="[0-9kmKM.,\s]*" />
                                 </div>
                                 <div class="mt-2 d-flex flex-wrap gap-2">
                                     <button type="button" class="btn btn-outline-primary btn-sm preset-amount" data-value="300000">300.000</button>

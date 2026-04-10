@@ -22,7 +22,6 @@ const getApiBaseCandidates = () => {
     if (port === "3000") {
         candidates.push(`${protocol}//${hostname}:5000/api`);
         candidates.push(`${protocol}//${hostname}:5199/api`);
-        candidates.push("/api");
     } else if (port === "80" || port === "") {
         candidates.push("/api");
         candidates.push(`${protocol}//${hostname}:5000/api`);
@@ -40,6 +39,11 @@ let cachedApiBase = "";
 
 const shouldTryNextBase = (response) => {
     return [404, 502, 503, 504].includes(response.status);
+};
+
+const isHtmlResponse = (response) => {
+    const contentType = (response.headers.get("content-type") || "").toLowerCase();
+    return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 };
 
 export const getApiBaseUrl = () => {
@@ -63,6 +67,19 @@ export const fetchApi = async (path, options = {}) => {
 
         try {
             const response = await fetch(url, options);
+
+            // A valid API endpoint in this project should not return HTML pages.
+            // This typically means wrong base URL, SPA fallback, or proxy misrouting.
+            if (isHtmlResponse(response)) {
+                if (i < uniqueBases.length - 1) {
+                    continue;
+                }
+
+                const error = new Error("API dang tra ve HTML thay vi JSON. Vui long kiem tra API base URL hoac proxy /api.");
+                error.status = response.status;
+                lastError = error;
+                continue;
+            }
 
             if (shouldTryNextBase(response) && i < uniqueBases.length - 1) {
                 continue;
