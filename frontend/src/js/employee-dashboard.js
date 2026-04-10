@@ -204,15 +204,18 @@ function renderPaymentRequests(records = []) {
 
     paymentTableBody.innerHTML = '';
     records.forEach((request) => {
+        const statusMeta = getPaymentStatusMeta(request.status);
         const canApprove = request.status === 'Pending';
-        const canReject = request.status === 'Pending' || request.status === 'Cancelled';
+        const canReject = request.status === 'Pending';
+        const hasActions = canApprove || canReject;
+        const currencySuffix = request.currency && request.currency !== 'VND' ? ` ${escapeHtml(request.currency)}` : '';
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>#${escapeHtml(String(request.id))}</td>
             <td>${escapeHtml(request.userName || (request.userId ? `Người dùng #${request.userId}` : request.paymentCode || '-'))}</td>
             <td>${escapeHtml(formatBhxhCode(request.bhxhCode || '-'))}</td>
-            <td>${escapeHtml(formatCurrency(request.amount))} ${escapeHtml(request.currency || '')}</td>
-            <td><span class="badge ${statusBadgeClass(request.status)}">${escapeHtml(request.status || '-')}</span></td>
+            <td>${escapeHtml(formatCurrency(request.amount))}${currencySuffix}</td>
+            <td><span class="badge ${statusMeta.badgeClass}">${escapeHtml(statusMeta.label)}</span></td>
             <td>${escapeHtml(formatDate(request.createdAt))}</td>
             <td class="text-center">
                 <div class="btn-group btn-group-sm" role="group">
@@ -226,6 +229,7 @@ function renderPaymentRequests(records = []) {
                             <i class="fas fa-times"></i>
                         </button>
                     ` : ''}
+                    ${!hasActions ? '<span class="text-muted small px-2 py-1">-</span>' : ''}
                 </div>
             </td>
         `;
@@ -393,6 +397,23 @@ function statusBadgeClass(status) {
     if (status === 'Pending') return 'bg-warning text-dark';
     if (status === 'Confirmed') return 'bg-success';
     return 'bg-info';
+}
+
+function getPaymentStatusMeta(status) {
+    const normalized = (status || '').trim();
+
+    switch (normalized) {
+        case 'Pending':
+            return { badgeClass: 'bg-warning text-dark', label: 'Đang chờ' };
+        case 'Confirmed':
+            return { badgeClass: 'bg-success', label: 'Đã xác nhận' };
+        case 'Rejected':
+            return { badgeClass: 'bg-danger', label: 'Bị từ chối' };
+        case 'Cancelled':
+            return { badgeClass: 'bg-secondary', label: 'Đã hủy' };
+        default:
+            return { badgeClass: 'bg-info', label: normalized || 'Không rõ' };
+    }
 }
 
 async function reviewPaymentRequestAction(paymentId, action) {
