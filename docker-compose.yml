@@ -34,8 +34,15 @@ services:
       - ASPNETCORE_ENVIRONMENT=Docker
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Server=database,1433;Database=BHXH_DB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - DB_URL=Server=database,1433;Database=BHXH_DB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
       - AesSettings__Key=${AES_KEY}       # Cho Task 11 (Mã hóa)
       - JwtSettings__SecretKey=${JWT_SECRET} # Cho Task 10 (Token)
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - APP_NAME=${APP_NAME}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "5000:8080" # Map cổng 5000 máy bạn vào cổng 8080 của container .NET
     depends_on:

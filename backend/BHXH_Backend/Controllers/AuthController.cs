@@ -23,23 +23,39 @@ namespace BHXH_Backend.Controllers
 
         private readonly ApplicationDbContext _context;
         private readonly SystemLogService _logService;
+        private readonly OtpService _otpService;
+        private readonly IConfiguration _configuration;
 
-        public AuthController(ApplicationDbContext context, SystemLogService logService)
+        public AuthController(
+            ApplicationDbContext context,
+            SystemLogService logService,
+            OtpService otpService,
+            IConfiguration configuration)
         {
             _context = context;
             _logService = logService;
+            _otpService = otpService;
+            _configuration = configuration;
         }
 
         [HttpPost("register")]
-        public async Task<ActionResult<User>> Register(RegisterDto request)
+        [HttpPost("/api/register")]
+        public async Task<IActionResult> Register([FromBody] RegisterDto request)
         {
-            var ipAddress = GetClientIpAddress();
-            var device = GetClientDevice();
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
 
-            var bhxhCode = request.BhxhCode?.Trim() ?? string.Empty;
+            var ipAddress = GetClientIpAddress();
+            var email = request.Email.Trim().ToLowerInvariant();
+            var username = request.Username.Trim();
+            var phoneNumber = request.PhoneNumber.Trim();
+            var bhxhCode = (request.BhxhCode ?? string.Empty).Trim();
+
             if (!Regex.IsMatch(bhxhCode, "^\\d{10}$"))
             {
-                return BadRequest(new { message = "Mã số BHXH phải đúng định dạng 10 chữ số." });
+                return BadRequest(new { message = "Mã số BHXH phải gồm đúng 10 chữ số." });
             }
 
             if (!PasswordPolicyHelper.IsStrong(request.Password))
@@ -47,61 +63,131 @@ namespace BHXH_Backend.Controllers
                 return BadRequest(new { message = PasswordPolicyHelper.PolicyDescription });
             }
 
-            if (await _context.Users.AnyAsync(u => u.Username == request.Username))
+            var userExists = await _context.Users.AnyAsync(u =>
+                u.Email == email ||
+                u.Username == username ||
+                u.PhoneNumber == phoneNumber ||
+                u.BhxhCode == bhxhCode);
+            if (userExists)
             {
-                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Tên đăng nhập đã tồn tại.", ipAddress);
-                return BadRequest(new { message = "Tên đăng nhập đã tồn tại." });
+                return BadRequest(new { message = "Thông tin đăng ký đã tồn tại trong hệ thống." });
             }
 
-            if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+            var pendingByOtherEmail = await _context.PendingRegistrations.AnyAsync(p =>
+                p.Email != email &&
+                (p.Username == username || p.PhoneNumber == phoneNumber || p.BhxhCode == bhxhCode));
+            if (pendingByOtherEmail)
             {
-                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Email đã tồn tại.", ipAddress);
-                return BadRequest(new { message = "Email đã được sử dụng." });
+                return BadRequest(new { message = "Thông tin đăng ký đang chờ xác thực ở email khác." });
             }
 
-            if (await _context.Users.AnyAsync(u => u.PhoneNumber == request.PhoneNumber))
+            var pendingRegistration = await _context.PendingRegistrations
+                .FirstOrDefaultAsync(p => p.Email == email);
+
+            if (pendingRegistration == null)
             {
-                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Số điện thoại đã tồn tại.", ipAddress);
-                return BadRequest(new { message = "Số điện thoại đã được sử dụng." });
+                pendingRegistration = new PendingRegistration
+                {
+                    Email = email
+                };
+                _context.PendingRegistrations.Add(pendingRegistration);
             }
 
-            if (await _context.Users.AnyAsync(u => u.BhxhCode == bhxhCode))
+            pendingRegistration.Username = username;
+            pendingRegistration.FullName = request.FullName.Trim();
+            pendingRegistration.PhoneNumber = phoneNumber;
+            pendingRegistration.BhxhCode = bhxhCode;
+            pendingRegistration.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            pendingRegistration.CreatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            try
             {
-                await _logService.WriteLogAsync(request.Username, "REGISTER_FAILED", "Mã số BHXH đã tồn tại.", ipAddress);
-                return BadRequest(new { message = "Mã số BHXH đã được sử dụng." });
+                await _otpService.CreateAndSendOtpAsync(email, OtpPurpose.Register, cancellationToken: HttpContext.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                await _logService.WriteLogAsync(username, "REGISTER_OTP_FAILED", $"Gửi OTP đăng ký thất bại: {ex.Message}", ipAddress);
+                return StatusCode(500, new { message = "Không thể gửi OTP đăng ký. Vui lòng thử lại." });
+            }
+
+            await _logService.WriteLogAsync(username, "REGISTER_OTP_SENT", "Đã gửi OTP đăng ký qua email.", ipAddress);
+            return Ok(new
+            {
+                message = "Đã gửi OTP đăng ký. Vui lòng kiểm tra email để xác thực.",
+                requiresOtp = true,
+                purpose = OtpPurpose.Register
+            });
+        }
+
+        [HttpPost("verify-register-otp")]
+        [HttpPost("/api/verify-register-otp")]
+        public async Task<IActionResult> VerifyRegisterOtp([FromBody] VerifyRegisterOtpDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var ipAddress = GetClientIpAddress();
+            var email = request.Email.Trim().ToLowerInvariant();
+
+            var pendingRegistration = await _context.PendingRegistrations.FirstOrDefaultAsync(p => p.Email == email);
+            if (pendingRegistration == null)
+            {
+                return BadRequest(new { message = "Không tìm thấy phiên đăng ký chờ xác thực." });
+            }
+
+            var otpRecord = await _otpService.VerifyOtpAsync(email, request.Otp, OtpPurpose.Register, true, HttpContext.RequestAborted);
+            if (otpRecord == null)
+            {
+                return BadRequest(new { message = "OTP không hợp lệ, đã hết hạn hoặc đã được sử dụng." });
+            }
+
+            var userExists = await _context.Users.AnyAsync(u =>
+                u.Email == pendingRegistration.Email ||
+                u.Username == pendingRegistration.Username ||
+                u.PhoneNumber == pendingRegistration.PhoneNumber ||
+                u.BhxhCode == pendingRegistration.BhxhCode);
+            if (userExists)
+            {
+                return BadRequest(new { message = "Thông tin tài khoản đã tồn tại, không thể tạo mới." });
             }
 
             var user = new User
             {
-                Username = request.Username,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                FullName = request.FullName,
-                PhoneNumber = request.PhoneNumber,
-                Email = request.Email,
+                Username = pendingRegistration.Username,
+                PasswordHash = pendingRegistration.PasswordHash,
+                FullName = pendingRegistration.FullName,
+                PhoneNumber = pendingRegistration.PhoneNumber,
+                Email = pendingRegistration.Email,
                 Role = RoleHelper.User,
                 FailedLoginAttempts = 0,
-                BhxhCode = bhxhCode
+                BhxhCode = pendingRegistration.BhxhCode
             };
 
             _context.Users.Add(user);
+            _context.PendingRegistrations.Remove(pendingRegistration);
             await _context.SaveChangesAsync();
 
-            await _logService.WriteLogAsync(
-                request.Username,
-                "REGISTER_SUCCESS",
-                $"Đăng ký thành công. Device={device}",
-                ipAddress);
-
+            await _logService.WriteLogAsync(user.Username, "REGISTER_SUCCESS", "Đăng ký thành công sau khi xác thực OTP.", ipAddress);
             return Ok(new
             {
-                message = "Đăng ký thành công. (Lượt demo chưa bật OTP email/SMS)",
-                requiresOtp = false
+                message = "Đăng ký thành công.",
+                createdUserId = user.Id
             });
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult> Login(LoginDto request)
+        [HttpPost("/api/login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto request)
         {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
             var ipAddress = GetClientIpAddress();
             var device = GetClientDevice();
             var identifier = request.Username?.Trim() ?? string.Empty;
@@ -156,33 +242,148 @@ namespace BHXH_Backend.Controllers
                 return Unauthorized(new { message = "Tài khoản hoặc mật khẩu không đúng." });
             }
 
+            if (string.IsNullOrWhiteSpace(user.Email))
+            {
+                return BadRequest(new { message = "Tài khoản chưa có email, không thể bật OTP đăng nhập." });
+            }
+
             user.FailedLoginAttempts = 0;
             user.LockoutEnd = null;
+            await _context.SaveChangesAsync();
+
+            try
+            {
+                await _otpService.CreateAndSendOtpAsync(user.Email, OtpPurpose.Login, user.Id, HttpContext.RequestAborted);
+            }
+            catch (Exception ex)
+            {
+                await _logService.WriteLogAsync(user.Username, "LOGIN_OTP_FAILED", $"Gửi OTP đăng nhập thất bại: {ex.Message}. Device={device}", ipAddress);
+                return StatusCode(500, new { message = "Không thể gửi OTP đăng nhập. Vui lòng thử lại." });
+            }
+
+            await _logService.WriteLogAsync(user.Username, "LOGIN_OTP_SENT", $"Đã gửi OTP đăng nhập. Device={device}", ipAddress);
+
+            return Ok(new
+            {
+                requiresOtp = true,
+                purpose = OtpPurpose.Login,
+                email = user.Email,
+                maskedEmail = MaskEmail(user.Email),
+                message = "Đã gửi OTP đến email đăng ký. Vui lòng xác thực để hoàn tất đăng nhập."
+            });
+        }
+
+        [HttpPost("verify-login-otp")]
+        [HttpPost("/api/verify-login-otp")]
+        public async Task<IActionResult> VerifyLoginOtp([FromBody] VerifyLoginOtpDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var ipAddress = GetClientIpAddress();
+            var email = request.Email.Trim().ToLowerInvariant();
+
+            var otpRecord = await _otpService.VerifyOtpAsync(email, request.Otp, OtpPurpose.Login, true, HttpContext.RequestAborted);
+            if (otpRecord == null)
+            {
+                return Unauthorized(new { message = "OTP đăng nhập không hợp lệ hoặc đã hết hạn." });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == otpRecord.UserId);
+            if (user == null || user.IsLocked)
+            {
+                return Unauthorized(new { message = "Không thể xác thực phiên đăng nhập." });
+            }
 
             var normalizedRole = RoleHelper.Normalize(user.Role);
             if (!string.Equals(user.Role, normalizedRole, StringComparison.Ordinal))
             {
                 user.Role = normalizedRole;
+                await _context.SaveChangesAsync();
             }
-
-            await _context.SaveChangesAsync();
-
-            await _logService.WriteLogAsync(
-                user.Username,
-                "LOGIN_SUCCESS",
-                $"Đăng nhập thành công. Device={device}",
-                ipAddress);
 
             var token = CreateToken(user, normalizedRole);
             var redirectPath = RoleHelper.GetDashboardPath(normalizedRole);
 
+            await _logService.WriteLogAsync(user.Username, "LOGIN_SUCCESS", "Đăng nhập thành công sau khi xác thực OTP.", ipAddress);
             return Ok(new
             {
                 token,
                 role = normalizedRole,
                 redirectPath,
-                message = "Đăng nhập thành công!"
+                message = "Đăng nhập thành công."
             });
+        }
+
+        [HttpPost("forgot-password")]
+        [HttpPost("/api/forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var ipAddress = GetClientIpAddress();
+            var email = request.Email.Trim().ToLowerInvariant();
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user != null)
+            {
+                try
+                {
+                    await _otpService.CreateAndSendOtpAsync(email, OtpPurpose.Reset, user.Id, HttpContext.RequestAborted);
+                    await _logService.WriteLogAsync(user.Username, "RESET_OTP_SENT", "Đã gửi OTP đặt lại mật khẩu.", ipAddress);
+                }
+                catch (Exception ex)
+                {
+                    await _logService.WriteLogAsync(user.Username, "RESET_OTP_FAILED", $"Gửi OTP quên mật khẩu thất bại: {ex.Message}", ipAddress);
+                    return StatusCode(500, new { message = "Không thể gửi OTP đặt lại mật khẩu. Vui lòng thử lại." });
+                }
+            }
+
+            return Ok(new
+            {
+                message = "Nếu email tồn tại trong hệ thống, OTP đặt lại mật khẩu đã được gửi."
+            });
+        }
+
+        [HttpPost("reset-password")]
+        [HttpPost("/api/reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            if (!PasswordPolicyHelper.IsStrong(request.NewPassword))
+            {
+                return BadRequest(new { message = PasswordPolicyHelper.PolicyDescription });
+            }
+
+            var email = request.Email.Trim().ToLowerInvariant();
+            var otpRecord = await _otpService.VerifyOtpAsync(email, request.Otp, OtpPurpose.Reset, true, HttpContext.RequestAborted);
+            if (otpRecord == null)
+            {
+                return BadRequest(new { message = "OTP không hợp lệ hoặc đã hết hạn." });
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            if (user == null)
+            {
+                return BadRequest(new { message = "Không tìm thấy tài khoản tương ứng." });
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            user.FailedLoginAttempts = 0;
+            user.LockoutEnd = null;
+            await _context.SaveChangesAsync();
+
+            await _logService.WriteLogAsync(user.Username, "RESET_PASSWORD_SUCCESS", "Đặt lại mật khẩu thành công.");
+            return Ok(new { message = "Đặt lại mật khẩu thành công." });
         }
 
         [HttpGet("login-history")]
@@ -213,8 +414,7 @@ namespace BHXH_Backend.Controllers
 
         private string CreateToken(User user, string normalizedRole)
         {
-            var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET")
-                ?? HttpContext.RequestServices.GetRequiredService<IConfiguration>()["JwtSettings:SecretKey"]
+            var jwtKey = ConfigurationHelper.GetJwtSecret(_configuration)
                 ?? throw new InvalidOperationException("JWT secret not configured.");
 
             var claims = new List<Claim>
@@ -256,6 +456,20 @@ namespace BHXH_Backend.Controllers
             }
 
             return userAgent.Length > 160 ? userAgent[..160] : userAgent;
+        }
+
+        private static string MaskEmail(string email)
+        {
+            var trimmed = (email ?? string.Empty).Trim();
+            var atIndex = trimmed.IndexOf('@');
+            if (atIndex <= 1)
+            {
+                return "***";
+            }
+
+            var userPart = trimmed[..atIndex];
+            var domainPart = trimmed[atIndex..];
+            return $"{userPart[0]}***{userPart[^1]}{domainPart}";
         }
     }
 }

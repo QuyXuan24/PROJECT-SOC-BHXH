@@ -56,7 +56,7 @@ namespace BHXH_Backend.Controllers
                 query = query.Where(r => r.CreatedAt <= to.Value);
             }
 
-            var aesKey = _config["AesSettings:Key"];
+            var aesKey = ConfigurationHelper.GetAesKey(_config);
             if (string.IsNullOrWhiteSpace(aesKey))
             {
                 return StatusCode(500, new { message = "He thong chua cau hinh AesSettings:Key." });

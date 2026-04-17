@@ -22,3 +22,4 @@ appsettings.Development.json
 backend/BHXH_Backend/certs/*.pem
 backend/BHXH_Backend/certs/*_sk
 !backend/BHXH_Backend/certs/.gitkeep
+backend/BHXH_Backend/uploads/
