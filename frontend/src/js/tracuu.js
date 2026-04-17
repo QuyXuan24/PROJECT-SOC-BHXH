@@ -28,20 +28,21 @@ const safe = (value, fallback = '-') => {
 };
 
 const renderBhxhResult = (record) => {
-    const status = safe(record.Status, 'Chưa xác định');
+    // SỬA LỖI: Chuyển từ PascalCase (VD: record.Status) sang camelCase (VD: record.status) để khớp với JSON từ backend
+    const status = safe(record.status, 'Chưa xác định');
     const badgeClass = status === 'Approved' ? 'success' : status === 'Rejected' ? 'danger' : 'warning';
-    const cccdVerified = Boolean(record.CccdVerified);
-    const totalMonths = Number(record.TotalMonths || 0);
-    const totalDuration = safe(record.TotalDuration, totalMonths > 0 ? `${totalMonths} tháng` : 'Chưa xác định');
+    const cccdVerified = Boolean(record.cccdVerified);
+    const totalMonths = Number(record.totalMonths || 0);
+    const totalDuration = safe(record.totalDuration, totalMonths > 0 ? `${totalMonths} tháng` : 'Chưa xác định');
 
-    const timelineRows = record.Timeline?.length
-        ? record.Timeline.map((item) => `
+    const timelineRows = record.timeline?.length
+        ? record.timeline.map((item) => `
             <tr>
-                <td>${safe(item.Period)}</td>
-                <td>${safe(item.CompanyName, 'Chưa cập nhật')}</td>
-                <td>${formatCurrency(item.Salary)}</td>
-                <td>${safe(item.ContributionType, 'Bắt buộc')}</td>
-                <td>${safe(item.Months, 0)}</td>
+                <td>${safe(item.period)}</td>
+                <td>${safe(item.companyName, 'Chưa cập nhật')}</td>
+                <td>${formatCurrency(item.salary)}</td>
+                <td>${safe(item.contributionType, 'Bắt buộc')}</td>
+                <td>${safe(item.months, 0)}</td>
             </tr>
         `).join('')
         : `<tr><td colspan="5" class="text-center text-muted">Không có dữ liệu lịch sử đóng BHXH chi tiết.</td></tr>`;
@@ -51,10 +52,10 @@ const renderBhxhResult = (record) => {
             <div class="card-body">
                 <div class="d-flex flex-wrap justify-content-between align-items-start">
                     <div>
-                        <h5 class="card-title text-primary mb-2">${safe(record.FullName, 'Chưa cập nhật')}</h5>
-                        <div class="lookup-key mb-2">Mã số BHXH: <strong>${formatBhxhCode(safe(record.BhxhCode, ''))}</strong></div>
-                        <div class="lookup-key mb-2">CCCD: <strong>${safe(record.Cccd)}</strong></div>
-                        <div class="lookup-key">Ngày sinh: <strong>${formatDateOnly(record.DateOfBirth)}</strong></div>
+                        <h5 class="card-title text-primary mb-2">${safe(record.fullName, 'Chưa cập nhật')}</h5>
+                        <div class="lookup-key mb-2">Mã số BHXH: <strong>${formatBhxhCode(safe(record.bhxhCode, ''))}</strong></div>
+                        <div class="lookup-key mb-2">CCCD: <strong>${safe(record.cccd)}</strong></div>
+                        <div class="lookup-key">Ngày sinh: <strong>${formatDateOnly(record.dateOfBirth)}</strong></div>
                     </div>
                     <div class="text-end">
                         <span class="badge bg-${badgeClass} mb-2">${status}</span>
@@ -63,18 +64,18 @@ const renderBhxhResult = (record) => {
                 </div>
 
                 <div class="row mt-4 gy-2">
-                    <div class="col-md-4"><strong>Công ty:</strong> ${safe(record.CompanyName, 'Chưa cập nhật')}</div>
-                    <div class="col-md-4"><strong>Lương đóng:</strong> ${formatCurrency(record.Salary)}</div>
+                    <div class="col-md-4"><strong>Công ty:</strong> ${safe(record.companyName, 'Chưa cập nhật')}</div>
+                    <div class="col-md-4"><strong>Lương đóng:</strong> ${formatCurrency(record.salary)}</div>
                     <div class="col-md-4"><strong>Tổng thời gian:</strong> ${totalDuration}</div>
                 </div>
 
                 <div class="row mt-3 gy-2">
-                    <div class="col-md-4"><strong>Ngày nộp:</strong> ${formatDateOnly(record.SubmittedAt)}</div>
-                    <div class="col-md-4"><strong>Cập nhật cuối:</strong> ${record.LastUpdatedAt ? formatDateOnly(record.LastUpdatedAt) : 'Chưa có'}</div>
-                    <div class="col-md-4"><strong>OTP:</strong> ${record.OtpProvided ? 'Đã nhập' : 'Không nhập'}</div>
+                    <div class="col-md-4"><strong>Ngày nộp:</strong> ${formatDateOnly(record.submittedAt)}</div>
+                    <div class="col-md-4"><strong>Cập nhật cuối:</strong> ${record.lastUpdatedAt ? formatDateOnly(record.lastUpdatedAt) : 'Chưa có'}</div>
+                    <div class="col-md-4"><strong>OTP:</strong> ${record.otpProvided ? 'Đã nhập' : 'Không nhập'}</div>
                 </div>
 
-                ${record.OtpNotice ? `<div class="alert alert-info mt-3 mb-0">${record.OtpNotice}</div>` : ''}
+                ${record.otpNotice ? `<div class="alert alert-info mt-3 mb-0">${record.otpNotice}</div>` : ''}
             </div>
         </div>
 
@@ -100,7 +101,7 @@ const renderBhxhResult = (record) => {
                         </tbody>
                     </table>
                 </div>
-                <div class="alert alert-secondary mb-0">${safe(record.Notes, 'Không có ghi chú.')}</div>
+                <div class="alert alert-secondary mb-0">${safe(record.notes, 'Không có ghi chú.')}</div>
             </div>
         </div>
     `;

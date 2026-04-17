@@ -104,6 +104,7 @@ services:
       - frontend
     networks:
       - bhxh_network
+    restart: always
 
 # Khai báo Volume
 volumes:
