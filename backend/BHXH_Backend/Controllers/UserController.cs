@@ -71,7 +71,7 @@ namespace BHXH_Backend.Controllers
             var actorIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
 
             var record = await _context.BhxhRecords.FirstOrDefaultAsync(r => r.UserId == userId);
-            var aesKey = _config["AesSettings:Key"];
+            var aesKey = ConfigurationHelper.GetAesKey(_config);
             if (string.IsNullOrWhiteSpace(aesKey))
             {
                 return StatusCode(500, new { message = "He thong chua cau hinh AesSettings:Key." });
@@ -91,6 +91,8 @@ namespace BHXH_Backend.Controllers
                     PhoneNumber = SecurityHelper.Encrypt(req.PhoneNumber, aesKey),
                     Address = SecurityHelper.Encrypt(req.Address, aesKey),
                     BhxhCode = SecurityHelper.Encrypt(req.BhxhCode, aesKey),
+                    CccdHash = HashHelper.ToSha256(req.Cccd),
+                    BhxhCodeHash = HashHelper.ToSha256(req.BhxhCode),
                     CompanyName = string.IsNullOrWhiteSpace(req.CompanyName) ? null : req.CompanyName.Trim(),
                     Salary = req.Salary,
                     Status = "Pending",
@@ -112,6 +114,8 @@ namespace BHXH_Backend.Controllers
                 record.PhoneNumber = SecurityHelper.Encrypt(req.PhoneNumber, aesKey);
                 record.Address = SecurityHelper.Encrypt(req.Address, aesKey);
                 record.BhxhCode = SecurityHelper.Encrypt(req.BhxhCode, aesKey);
+                record.CccdHash = HashHelper.ToSha256(req.Cccd);
+                record.BhxhCodeHash = HashHelper.ToSha256(req.BhxhCode);
                 if (!string.IsNullOrWhiteSpace(req.CompanyName))
                 {
                     record.CompanyName = req.CompanyName.Trim();
@@ -309,7 +313,7 @@ namespace BHXH_Backend.Controllers
                 return NotFound("Ban chua nop ho so nao.");
             }
 
-            var aesKey = _config["AesSettings:Key"];
+            var aesKey = ConfigurationHelper.GetAesKey(_config);
             if (string.IsNullOrWhiteSpace(aesKey))
             {
                 return StatusCode(500, new { message = "He thong chua cau hinh AesSettings:Key." });

@@ -72,6 +72,12 @@ namespace BHXH_Backend.Controllers
         [HttpPost("users")]
         public async Task<IActionResult> CreateAccount([FromBody] CreateAccountDto req)
         {
+            if (string.IsNullOrWhiteSpace(req.Email))
+            {
+                return BadRequest("Email là bắt buộc để xác thực OTP đăng nhập.");
+            }
+            var normalizedEmail = req.Email.Trim().ToLowerInvariant();
+
             var role = RoleHelper.Normalize(req.Role);
             if (!RoleHelper.IsSupportedRole(role))
             {
@@ -83,7 +89,7 @@ namespace BHXH_Backend.Controllers
                 return BadRequest("Ten dang nhap da ton tai.");
             }
 
-            if (!string.IsNullOrWhiteSpace(req.Email) && await _context.Users.AnyAsync(u => u.Email == req.Email))
+            if (await _context.Users.AnyAsync(u => u.Email == normalizedEmail))
             {
                 return BadRequest("Email da duoc su dung.");
             }
@@ -107,7 +113,7 @@ namespace BHXH_Backend.Controllers
                 IsLocked = false,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(rawPassword),
                 PhoneNumber = req.PhoneNumber?.Trim() ?? string.Empty,
-                Email = req.Email?.Trim() ?? string.Empty,
+                Email = normalizedEmail,
                 BhxhCode = string.Empty,
                 FailedLoginAttempts = 0
             };
@@ -143,7 +149,7 @@ namespace BHXH_Backend.Controllers
 
             if (!string.IsNullOrWhiteSpace(req.Email))
             {
-                var email = req.Email.Trim();
+                var email = req.Email.Trim().ToLowerInvariant();
                 if (await _context.Users.AnyAsync(u => u.Email == email && u.Id != id))
                 {
                     return BadRequest("Email da duoc su dung.");

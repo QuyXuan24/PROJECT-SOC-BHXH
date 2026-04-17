@@ -1,4 +1,4 @@
-import { loginUser } from '/services/authApi.js';
+import { loginUser, verifyLoginOtp } from '/services/authApi.js';
 import { setToken } from '/services/tokenService.js';
 
 const loginForm = document.getElementById('loginForm');
@@ -21,15 +21,25 @@ if (loginForm) {
         btn.disabled = true;
 
         try {
-            const result = await loginUser(userField.value.trim(), passField.value);
-            if (!result?.success || !result?.token) {
-                throw new Error(result?.message || 'Đăng nhập thất bại.');
+            const loginResult = await loginUser(userField.value.trim(), passField.value);
+            if (!loginResult?.requiresOtp || !loginResult?.email) {
+                throw new Error(loginResult?.message || 'Không thể khởi tạo OTP đăng nhập.');
             }
 
-            setToken(result.token);
-            window.location.href = result.redirectPath || '/security/dashboard';
+            const otp = window.prompt(`Nhập OTP đã gửi về email ${loginResult.maskedEmail || loginResult.email}:`, '');
+            if (!otp) {
+                throw new Error('Bạn cần nhập OTP để đăng nhập.');
+            }
+
+            const verifyResult = await verifyLoginOtp(loginResult.email, otp.trim());
+            if (!verifyResult?.token) {
+                throw new Error('Không thể xác thực OTP đăng nhập.');
+            }
+
+            setToken(verifyResult.token);
+            window.location.href = verifyResult.redirectPath || '/security/dashboard';
         } catch (error) {
-            errorBox.textContent = error?.message || 'Loi ket noi den backend.';
+            errorBox.textContent = error?.message || 'Lỗi kết nối đến backend.';
             errorBox.classList.remove('d-none');
             btn.innerHTML = originalBtnText;
             btn.disabled = false;

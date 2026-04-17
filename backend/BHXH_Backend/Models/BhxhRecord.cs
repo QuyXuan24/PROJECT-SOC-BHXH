@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BHXH_Backend.Models
@@ -7,7 +7,9 @@ namespace BHXH_Backend.Models
     {
         [Key]
         public int Id { get; set; }
-        public string? ProcessedBy { get; set; }        public string? ReviewNote { get; set; }
+
+        public string? ProcessedBy { get; set; }
+        public string? ReviewNote { get; set; }
         public int UserId { get; set; }
 
         [ForeignKey("UserId")]
@@ -21,6 +23,12 @@ namespace BHXH_Backend.Models
         public required string PhoneNumber { get; set; }
         public required string Address { get; set; }
         public required string BhxhCode { get; set; }
+
+        [MaxLength(64)]
+        public string CccdHash { get; set; } = string.Empty;
+
+        [MaxLength(64)]
+        public string BhxhCodeHash { get; set; } = string.Empty;
 
         public string? CompanyName { get; set; }
         public decimal? Salary { get; set; }
