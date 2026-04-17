@@ -1,96 +1,49 @@
-const normalizeBaseUrl = (baseUrl) => String(baseUrl || "").replace(/\/+$/, "");
+// =================================================================
+// Tối ưu và đơn giản hóa API Client
+// - Loại bỏ logic phức tạp, tự động dò tìm base URL.
+// - Sử dụng một base URL duy nhất, đáng tin cậy, dễ cấu hình.
+// - Khi chạy với Docker, backend luôn được expose qua port 5000.
+// =================================================================
 
-const getApiBaseCandidates = () => {
-    if (typeof window === "undefined") {
-        return ["http://localhost:5000/api", "http://localhost:5199/api"];
-    }
+const API_BASE_URL = "http://localhost:5000/api";
 
-    const override =
-        (typeof window.SOC_API_BASE_URL === "string" && window.SOC_API_BASE_URL.trim()) ||
-        localStorage.getItem("soc_api_base_url");
-
-    const protocol = window.location.protocol || "http:";
-    const hostname = window.location.hostname || "localhost";
-    const port = window.location.port || "";
-
-    const candidates = [];
-
-    if (override) {
-        candidates.push(override);
-    }
-
-    if (port === "3000") {
-        candidates.push(`${protocol}//${hostname}:5000/api`);
-        candidates.push(`${protocol}//${hostname}:5199/api`);
-    } else if (port === "80" || port === "") {
-        candidates.push("/api");
-        candidates.push(`${protocol}//${hostname}:5000/api`);
-        candidates.push(`${protocol}//${hostname}:5199/api`);
-    } else {
-        candidates.push(`${protocol}//${hostname}:5199/api`);
-        candidates.push(`${protocol}//${hostname}:5000/api`);
-        candidates.push("/api");
-    }
-
-    return [...new Set(candidates.map(normalizeBaseUrl).filter(Boolean))];
-};
-
-let cachedApiBase = "";
-
-const shouldTryNextBase = (response) => {
-    return [404, 502, 503, 504].includes(response.status);
-};
-
-const isHtmlResponse = (response) => {
-    const contentType = (response.headers.get("content-type") || "").toLowerCase();
-    return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
-};
-
-export const getApiBaseUrl = () => {
-    if (cachedApiBase) {
-        return cachedApiBase;
-    }
-
-    const [firstBase] = getApiBaseCandidates();
-    return firstBase || "";
-};
-
+/**
+ * Hàm fetch API đã được chuẩn hóa.
+ * @param {string} path - Đường dẫn endpoint (ví dụ: '/auth/login')
+ * @param {object} options - Tùy chọn cho hàm fetch (method, body, headers...)
+ * @returns {Promise<Response>} - Đối tượng Response gốc từ fetch
+ */
 export const fetchApi = async (path, options = {}) => {
     const safePath = path.startsWith("/") ? path : `/${path}`;
-    const bases = [cachedApiBase, ...getApiBaseCandidates()].filter(Boolean);
-    const uniqueBases = [...new Set(bases)];
-    let lastError = null;
+    const url = `${API_BASE_URL}${safePath}`;
 
-    for (let i = 0; i < uniqueBases.length; i += 1) {
-        const base = uniqueBases[i];
-        const url = `${base}${safePath}`;
+    const defaultHeaders = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    };
 
-        try {
-            const response = await fetch(url, options);
+    const config = {
+        ...options,
+        headers: {
+            ...defaultHeaders,
+            ...options.headers,
+        },
+    };
 
-            // A valid API endpoint in this project should not return HTML pages.
-            // This typically means wrong base URL, SPA fallback, or proxy misrouting.
-            if (isHtmlResponse(response)) {
-                if (i < uniqueBases.length - 1) {
-                    continue;
-                }
-
-                const error = new Error("API dang tra ve HTML thay vi JSON. Vui long kiem tra API base URL hoac proxy /api.");
-                error.status = response.status;
-                lastError = error;
-                continue;
-            }
-
-            if (shouldTryNextBase(response) && i < uniqueBases.length - 1) {
-                continue;
-            }
-
-            cachedApiBase = base;
-            return response;
-        } catch (error) {
-            lastError = error;
-        }
+    try {
+        const response = await fetch(url, config);
+        return response;
+    } catch (error) {
+        // Lỗi mạng (ví dụ: ERR_CONNECTION_REFUSED) sẽ được bắt ở đây.
+        console.error(`Network error when calling ${url}:`, error);
+        throw new Error("Không thể kết nối đến máy chủ API. Vui lòng kiểm tra xem backend đã chạy chưa.");
     }
+};
 
-    throw lastError || new Error("Không thể kết nối tới SOC");
+/**
+ * Hàm tiện ích để lấy base URL, hữu ích cho các trường hợp cần URL đầy đủ (ví dụ: src của ảnh).
+ * @returns {string}
+ */
+export const getApiBaseUrl = () => {
+    return API_BASE_URL;
 };
