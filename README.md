@@ -1,6 +1,18 @@
-# 🛡️ Hệ thống Quản lý BHXH & Giám sát An ninh (SOC) trên Blockchain
+<p align="center">
+  <h1 align="center">🛡️ Hệ thống Quản lý BHXH & Giám sát An ninh (SOC)</h1>
+  <p align="center">
+    🔐 Bảo mật cao • ⛓️ Bất biến • ⚡ Giám sát thời gian thực
+  </p>
 
-> 🔐 Bảo mật cao • ⛓️ Bất biến • ⚡ Giám sát thời gian thực
+  <p align="center">
+    <img src="https://img.shields.io/badge/ASP.NET-Core-blue" />
+    <img src="https://img.shields.io/badge/Docker-Container-blue" />
+    <img src="https://img.shields.io/badge/Blockchain-Hyperledger-green" />
+    <img src="https://img.shields.io/badge/Security-SOC-red" />
+    <img src="https://img.shields.io/badge/Auth-JWT-orange" />
+    <img src="https://img.shields.io/badge/Encryption-AES--256-purple" />
+  </p>
+</p>
 
 ---
 
