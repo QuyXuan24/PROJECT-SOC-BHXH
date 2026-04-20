@@ -1,22 +1,24 @@
-version: '3.8'
+
 
 services:
   # ==========================================
   # 1. DATABASE - SQL SERVER 
   # ==========================================
   database:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2019-latest
     container_name: bhxh_sql_server
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=${DB_PASSWORD} # Lấy từ file .env
+      - MSSQL_PID=Developer
     ports:
       - "1433:1433"
     volumes:
-      - ./sql_data:/var/opt/mssql # Volume giữ dữ liệu SQL
+      - sql_data_new:/var/opt/mssql # Volume giữ dữ liệu SQL
     networks:
       - bhxh_network
     restart: always
+    
 
   # ==========================================
   # 2. BACKEND - ASP.NET CORE API
@@ -29,10 +31,18 @@ services:
     container_name: bhxh_api_core
     environment:
       # Connection String chuẩn cho .NET kết nối SQL Server
-      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_ENVIRONMENT=Docker
+      - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Server=database,1433;Database=BHXH_DB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
-      - AES_KEY=${AES_KEY}       # Cho Task 11 (Mã hóa)
-      - JWT_SECRET=${JWT_SECRET} # Cho Task 10 (Token)
+      - DB_URL=Server=database,1433;Database=BHXH_DB;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=True;
+      - AesSettings__Key=${AES_KEY}       # Cho Task 11 (Mã hóa)
+      - JwtSettings__SecretKey=${JWT_SECRET} # Cho Task 10 (Token)
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - APP_NAME=${APP_NAME}
+      - EMAIL_HOST=${EMAIL_HOST}
+      - EMAIL_PORT=${EMAIL_PORT}
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "5000:8080" # Map cổng 5000 máy bạn vào cổng 8080 của container .NET
     depends_on:
@@ -58,6 +68,26 @@ services:
     restart: always
 
   # ==========================================
+  # 5. BLOCKCHAIN BRIDGE - KẾT NỐI VỚI BLOCKCHAIN (NODEJS)
+  # ==========================================
+  blockchain_bridge:
+    build: ./bridge-ubuntu # Đảm bảo bạn có folder này và Dockerfile bên trong
+    container_name: bhxh_bridge_ubuntu
+    environment:
+      - FABRIC_ENABLED=${FABRIC_ENABLED:-false}
+      - FABRIC_CHANNEL=mychannel
+      - FABRIC_CONTRACT=soc_bhxh
+      - FABRIC_IDENTITY=appUser
+      - FABRIC_AS_LOCALHOST=true
+      - FABRIC_CONNECTION_FILE=connection-org1.json
+      - FABRIC_WALLET_DIR=wallet
+    ports:
+      - "3001:3001" 
+    networks:
+      - bhxh_network
+    restart: always
+
+  # ==========================================
   # 4. NGINX - REVERSE PROXY
   # ==========================================
   nginx:
@@ -74,10 +104,11 @@ services:
       - frontend
     networks:
       - bhxh_network
+    restart: always
 
 # Khai báo Volume
 volumes:
-  sql_data:
+  sql_data_new:
 
 # Khai báo Network để các container nhìn thấy nhau
 networks:

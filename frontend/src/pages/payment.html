@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Đóng phí BHXH</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">Đóng phí BHXH Tự nguyện</h1>
+            <div>
+                <a href="/pages/user-dashboard.html" class="btn btn-secondary btn-sm me-2">Bảng điều khiển</a>
+                <button id="btnLogout" class="btn btn-outline-danger btn-sm">Đăng xuất</button>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-5">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white fw-bold">
+                        <i class="fas fa-university me-2"></i>Thông tin ngân hàng
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <small class="text-muted">Ngân hàng</small>
+                            <div class="fw-semibold">MB Bank</div>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">Số tài khoản</small>
+                            <div class="fw-semibold font-monospace" id="bankAccountNumber">0702633853</div>
+                            <div class="mt-2 d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2" id="copyAccountBtn">
+                                    <i class="fas fa-copy me-1"></i>Copy STK
+                                </button>
+                                <small id="copyAccountNotice" class="text-success d-none">Đã copy số tài khoản</small>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">Chủ tài khoản</small>
+                            <div class="fw-semibold">DOAN XUAN QUY</div>
+                        </div>
+                        <div>
+                            <small class="text-muted">Chi nhánh</small>
+                            <div class="fw-semibold">Đà Nẵng</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-success text-white fw-bold">
+                        <i class="fas fa-file-invoice-dollar me-2"></i>Tạo yêu cầu thanh toán
+                    </div>
+                    <div class="card-body">
+                        <form id="paymentForm">
+                            <div class="mb-3">
+                                <label for="bhxhCode" class="form-label">Mã số BHXH 
+                                    <small class="text-muted">(tự động)</small>
+                                </label>
+                                <input type="text" id="bhxhCode" class="form-control" readonly 
+                                    style="background-color: #f0f0f0; cursor: not-allowed;" />
+                                <small class="text-muted">Được lấy tự động từ hồ sơ của bạn</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="amount" class="form-label">Số tiền (VND)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">₫</span>
+                                    <input type="text" id="amount" class="form-control" inputmode="numeric" autocomplete="off"
+                                        placeholder="Nhập số tiền tùy ý (vd: 300000 hoặc 300k hoặc 3m)" required pattern="[0-9kmKM.,\s]*" />
+                                </div>
+                                <div class="mt-2 d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm preset-amount" data-value="300000">300.000</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm preset-amount" data-value="500000">500.000</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm preset-amount" data-value="1000000">1.000.000</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm preset-amount" data-value="3000000">3.000.000</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm preset-amount" data-value="5000000">5.000.000</button>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    💡 Nhập tự do hoặc click nút chọn nhanh bên trên
+                                </small>
+                                <div id="amountDisplay" class="form-text text-success"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Nội dung thanh toán</label>
+                                <textarea id="description" class="form-control" rows="3" placeholder="Ví dụ: Đóng BHXH tự nguyện"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100 fw-semibold">
+                                <i class="fas fa-qrcode me-2"></i>Tạo mã QR
+                            </button>
+                        </form>
+                        <div id="paymentAlert" class="alert d-none mt-3" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info text-white fw-bold">
+                        <i class="fas fa-qrcode me-2"></i>Mã QR thanh toán
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="resultSection" class="d-none">
+                            <div class="mb-4 p-3 bg-light rounded">
+                                <p class="small text-muted mb-1">Mã phiếu</p>
+                                <p id="paymentCode" class="h5 font-monospace fw-semibold mb-0"></p>
+                            </div>
+                            <div class="mb-4 p-3 bg-primary text-white rounded">
+                                <p class="small mb-1">Số tiền thanh toán</p>
+                                <p id="paymentAmount" class="h4 fw-bold mb-0">₫ 0</p>
+                            </div>
+                            <div id="qrCodeImage" class="mb-3 d-flex justify-content-center">
+                                <img src="" alt="QR Code" class="img-fluid" style="max-width: 300px;" />
+                            </div>
+                            <p class="small text-success mb-2">
+                                <i class="fas fa-check-circle me-1"></i>Trạng thái: <span id="paymentStatus"></span>
+                            </p>
+                            <div class="alert alert-info">
+                                <small>
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Hướng dẫn: Mở ứng dụng MB Bank, chọn "Chuyển tiền", quét mã QR trên để thanh toán.<br/>
+                                    Số tiền đã được điền sẵn, bạn chỉ cần xác nhận.
+                                </small>
+                            </div>
+                        </div>
+                        <div id="emptyResult" class="text-muted">
+                            <i class="fas fa-arrow-left me-2"></i>Nhập thông tin và tạo mã QR để hiển thị tại đây
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-secondary text-white fw-bold">
+                        <i class="fas fa-history me-2"></i>Lịch sử yêu cầu thanh toán
+                    </div>
+                    <div class="card-body">
+                        <div id="paymentHistory"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/js/payment.js"></script>
+</body>
+</html>

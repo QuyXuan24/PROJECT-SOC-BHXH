@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổng Dịch Vụ Công - Đăng Nhập/Đăng Ký</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/animations.css">
+    <style>
+        body { background-color: #e9ecef; }
+        .auth-container { max-width: 500px; margin: 60px auto; background: white; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); overflow: hidden; }
+        .auth-header { background: #0056b3; color: white; padding: 20px; text-align: center; }
+        .nav-tabs { border-bottom: none; }
+        .nav-tabs .nav-link { border: none; border-radius: 0; padding: 15px; color: #6c757d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .nav-tabs .nav-link.active { color: #0056b3; border-bottom: 3px solid #0056b3; background: transparent; }
+        .form-control:focus { border-color: #0056b3; box-shadow: 0 0 0 0.25rem rgba(0, 86, 179, 0.25); }
+    </style>
+</head>
+<body>
+
+    <div class="container mt-3">
+        <a href="/index.html" class="text-decoration-none fw-bold text-secondary"><i class="fas fa-arrow-left me-2"></i>Quay lại Trang chủ</a>
+    </div>
+
+    <div class="auth-container">
+        <div class="auth-header">
+            <i class="fas fa-user-circle fa-4x mb-2"></i>
+            <h4 class="fw-bold mb-0">CỔNG DỊCH VỤ CÔNG</h4>
+            <small>Cá nhân / Tổ chức</small>
+        </div>
+
+        <ul class="nav nav-tabs d-flex" id="authTab" role="tablist">
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link active w-100" id="login-tab" data-bs-toggle="tab" data-bs-target="#login-pane" type="button" role="tab">Đăng Nhập</button>
+            </li>
+            <li class="nav-item flex-fill text-center" role="presentation">
+                <button class="nav-link w-100" id="register-tab" data-bs-toggle="tab" data-bs-target="#register-pane" type="button" role="tab">Đăng Ký</button>
+            </li>
+        </ul>
+
+        <div class="tab-content p-4" id="authTabContent">
+            <div class="tab-pane fade show active" id="login-pane" role="tabpanel">
+                <form id="citizenLoginForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tên đăng nhập / Mã BHXH / Email <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fas fa-id-card text-muted"></i></span>
+                            <input
+                                type="text"
+                                id="loginUsername"
+                                name="username"
+                                class="form-control"
+                                placeholder="Nhập username hoặc mã BHXH..."
+                                required
+                            >
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Mật khẩu <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="fas fa-lock text-muted"></i></span>
+                            <input
+                                type="password"
+                                id="loginPassword"
+                                name="password"
+                                class="form-control"
+                                placeholder="Nhập mật khẩu..."
+                                required
+                            >
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold py-2 mb-3">ĐĂNG NHẬP</button>
+                    <div class="text-center">
+                        <a id="forgotPasswordLink" href="#" class="text-decoration-none text-muted small">Quên mật khẩu?</a>
+                    </div>
+                </form>
+                <div id="errorMessage" class="alert alert-danger mt-3 d-none" role="alert"></div>
+            </div>
+
+            <div class="tab-pane fade" id="register-pane" role="tabpanel">
+                <form id="citizenRegisterForm">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Họ và Tên <span class="text-danger">*</span></label>
+                        <input type="text" name="fullName" class="form-control" placeholder="Nhập họ và tên có dấu..." maxlength="100" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tên đăng nhập <span class="text-danger">*</span></label>
+                        <input type="text" name="username" class="form-control" placeholder="4-20 ký tự, chỉ gồm chữ và số..." minlength="4" maxlength="20" pattern="[A-Za-z0-9]+" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" placeholder="Nhập email..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Số điện thoại <span class="text-danger">*</span></label>
+                        <input type="text" name="phoneNumber" class="form-control" placeholder="Nhập số điện thoại..." minlength="8" maxlength="20" pattern="[0-9+\-\s()]+" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Mã số BHXH <span class="text-danger">*</span></label>
+                        <input type="text" name="bhxhCode" class="form-control" placeholder="Nhập 10 chữ số mã BHXH..." maxlength="10" pattern="[0-9]{10}" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Mật khẩu <span class="text-danger">*</span></label>
+                        <input type="password" name="password" class="form-control" placeholder="Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số, ký tự đặc biệt..." minlength="8" pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}" title="Mật khẩu cần có chữ hoa, chữ thường, số và ký tự đặc biệt." required>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" value="" id="flexCheckDefault" required>
+                        <label class="form-check-label small text-muted" for="flexCheckDefault">
+                            Tôi cam kết các thông tin khai báo là đúng sự thật.
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 fw-bold py-2">ĐĂNG KÝ TÀI KHOẢN</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/animations.js"></script>
+</body>
+</html>
