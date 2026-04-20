@@ -71,19 +71,112 @@ Dự án xây dựng một nền tảng thế hệ mới, kết hợp:
 
 ---
 
-## ⚙️ Công nghệ
+## ⚙️ Công nghệ sử dụng
 
-- Frontend: React / Vue  
-- Backend: Node.js / Spring Boot  
-- Database: PostgreSQL / MongoDB  
-- Blockchain: Hyperledger Fabric  
-- DevOps: Docker  
+---
+
+### 🧠 Kiến trúc tổng thể
+- Microservices Architecture
+- Containerization (Docker)
+- Reverse Proxy (Nginx)
+- Blockchain-based Logging (Hyperledger Fabric)
+
+---
+
+### 🌐 Ngôn ngữ lập trình
+
+- **C#** – Backend (ASP.NET Core API)
+- **JavaScript (ES6)** – Frontend & Blockchain Bridge
+- **HTML5** – Cấu trúc giao diện
+- **CSS3** – Thiết kế UI
+
+---
+
+### 🚀 Backend
+
+- **ASP.NET Core 8** – Xây dựng RESTful API
+- **Entity Framework Core** – ORM thao tác với database
+- **JWT (JSON Web Token)** – Authentication & Authorization
+- **Serilog** – Logging hệ thống
+- **AES-256** – Mã hóa dữ liệu nhạy cảm
+
+---
+
+### 🎨 Frontend
+
+- **Bootstrap 5** – UI framework
+- **Vanilla JavaScript (ES6 Modules)** – Xử lý logic frontend
+- **Font Awesome** – Icon UI
+
+---
+
+### ⛓️ Blockchain Layer
+
+- **Hyperledger Fabric** – Blockchain permissioned
+- **Node.js (Blockchain Bridge)** – Kết nối Backend ↔ Blockchain
+
+---
+
+### 🗄️ Database
+
+- **Microsoft SQL Server** – Lưu trữ dữ liệu chính
+
+---
+
+### 🛠️ DevOps & Hạ tầng
+
+- **Docker** – Container hóa dịch vụ
+- **Docker Compose** – Quản lý multi-container
+- **Nginx** – Reverse Proxy & Load Balancer
+- **Git** – Version Control
+
+---
+
+### 📡 Tích hợp bên ngoài
+
+- **SMTP (Email Service)** – Gửi OTP
+- **VietQR API** – Thanh toán QR
+
+---
+
+## 🔐 Bảo mật & Kỹ thuật
+
+### 🔑 Authentication & Authorization
+- JWT Authentication
+- Role-based Access Control (RBAC)
+
+---
+
+### 🔐 Bảo mật nâng cao
+
+- Two-Factor Authentication (OTP Email)
+- AES-256 Encryption (Data at Rest)
+- HTTPS (Data in Transit)
+
+---
+
+### 🛡️ Giám sát & An ninh (SOC)
+
+- Real-time Monitoring Dashboard
+- SIEM-style Log Analysis
+- Threat Detection:
+  - Brute-force Attack
+  - Unauthorized Access (401, 403)
+  - SQL Injection
+
+---
+
+### ⛓️ Logging & Audit
+
+- Immutable Logging (Blockchain)
+- Tamper-proof system logs
+- Full audit trail
 
 ---
 
 ## 🔥 Điểm mạnh
 
-- ✅ SOC + Blockchain (rất hiếm)
+- ✅ SOC + Blockchain 
 - ✅ Log không thể sửa
 - ✅ Realtime detection
 - ✅ Kiến trúc chuẩn doanh nghiệp
